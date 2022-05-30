@@ -1,8 +1,14 @@
 # Compiled class file
 *.class
 
+*.jwk
+*.dds
+
 # Log file
 *.log
+
+# don't leak secrets!
+/certs/*
 
 # BlueJ files
 *.ctxt
