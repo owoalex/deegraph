@@ -2,7 +2,7 @@
 *.class
 
 *.jwk
-*.dds
+*.njs
 
 # Log file
 *.log
