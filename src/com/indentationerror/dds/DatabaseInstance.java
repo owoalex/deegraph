@@ -19,7 +19,14 @@ import java.text.ParseException;
 import java.util.*;
 
 public class DatabaseInstance {
-    protected HashMap<UUID, Node> registeredNodes;
+    private HashMap<UUID, Node> registeredNodes; // Stores all the nodes we have loaded in the database
+
+    private ArrayList<WUUID> missingNodes; // Stores node global ids that are referenced but not found in database.
+
+    private ArrayList<AuthorizationRule> authorizationRules; // Stores all the parsed authorization rules used for generating permissions
+    private ArrayList<AuthenticationMethod> authenticationMethods;
+
+    private HashMap<UUID, HashMap<UUID, AuthorizationRule>> relevantRule; // To save searching for rules that matter between two nodes every request, cache the result of the search
     private UUID instanceId;
     private String dbLocation;
 
@@ -29,6 +36,8 @@ public class DatabaseInstance {
     private JournalSegment currentJournalSegment;
 
     private long maxJournalAgeMs = 1000 * 60; // Rotate journals every 60 seconds by default
+
+    private JSONObject config;
 
     private static byte[] NAMESPACE_DNS = UUIDUtils.asBytes(UUID.fromString("6ba7b810-9dad-11d1-80b4-00c04fd430c8"));
     public DatabaseInstance(String configFilePath) throws IOException, NoSuchAlgorithmException, UnvalidatedJournalSegment {
@@ -40,10 +49,10 @@ public class DatabaseInstance {
                 jsonBuilder.append(currentLine).append("\n");
             }
         }
-        JSONObject configObject = new JSONObject(jsonBuilder.toString());
-        String fqdn = configObject.getString("fqdn");
-        if (configObject.has("journal_lifetime")) {
-            maxJournalAgeMs = 1000 * configObject.getInt("journal_lifetime");
+        this.config = new JSONObject(jsonBuilder.toString());
+        String fqdn = this.config.getString("fqdn");
+        if (this.config.has("journal_lifetime")) {
+            maxJournalAgeMs = 1000 * this.config.getInt("journal_lifetime");
         }
         byte[] fqdnBytes = fqdn.getBytes();
         MessageDigest md = MessageDigest.getInstance("SHA-1");
@@ -66,10 +75,10 @@ public class DatabaseInstance {
 
         this.registeredNodes = new HashMap<>();
 
-        if (!configObject.getString("data_directory").endsWith(File.separator)) {
-            this.dbLocation = configObject.getString("data_directory") + File.separator;
+        if (!this.config.getString("data_directory").endsWith(File.separator)) {
+            this.dbLocation = this.config.getString("data_directory") + File.separator;
         } else {
-            this.dbLocation = configObject.getString("data_directory");
+            this.dbLocation = this.config.getString("data_directory");
         }
         File dbDirectory = new File(this.dbLocation);
         if (!dbDirectory.exists()) {
@@ -78,24 +87,13 @@ public class DatabaseInstance {
         if (!dbDirectory.isDirectory()) {
             throw new FileAlreadyExistsException("The intended database directory path already points to a file");
         }
-        this.completeJournal = new LinkedList<>();
-        File[] directoryListing = dbDirectory.listFiles();
-        Arrays.sort(directoryListing);
-        for (File child : directoryListing) {
-            if (child.getName().endsWith(".njs") && child.canRead()) {
-                System.out.println("Replaying journal segment [" + child.getName() + "]");
-                JournalSegment journalSegment = new JournalSegment(this, child);
-                journalSegment.replayOn(this);
-                this.completeJournal.offer(journalSegment);
-            }
-        }
-        System.out.println("Journal rebuilt!");
 
         //https://www.javadoc.io/doc/com.nimbusds/nimbus-jose-jwt/latest/index.html
 
         File jwkFile = new File(this.dbLocation + this.instanceId.toString() + ".private.jwk");
 
         if (jwkFile.exists() && jwkFile.isFile() && jwkFile.canRead()) {
+            System.out.println("Loading private key");
             jsonBuilder = new StringBuilder();
             try (BufferedReader br = new BufferedReader(new FileReader(jwkFile))) {
                 String currentLine;
@@ -109,12 +107,14 @@ public class DatabaseInstance {
 
             try {
                 this.jwk = (OctetKeyPair) JWK.parse(jsonObject.toMap());
+                System.out.println("Private key loaded successfully");
             } catch (ParseException e) {
                 throw new RuntimeException(e);
             }
         }
 
         if (this.jwk == null) {
+            System.out.println("Generating a private key for the server");
             JWKGenerator<OctetKeyPair> jwkGenerator = new OctetKeyPairGenerator(Curve.Ed25519);
             jwkGenerator.algorithm(new Algorithm("EdDSA"));
             jwkGenerator.keyUse(KeyUse.SIGNATURE);
@@ -133,16 +133,63 @@ public class DatabaseInstance {
                 jwkWriter.write(jsonObject.toString(4));
                 jwkWriter.close();
                 Files.copy(publicJWKFile.toPath(), Paths.get(this.instanceId.toString() + ".public.jwk"), StandardCopyOption.REPLACE_EXISTING);
+                System.out.println("Private key OK");
             } catch (JOSEException e) {
                 throw new RuntimeException(e);
             }
         }
 
+        this.authenticationMethods = new ArrayList<>();
         this.currentJournalSegment = new JournalSegment(this);
+
+        System.out.println("Restoring journal from disk");
+        this.completeJournal = new LinkedList<>();
+        File[] directoryListing = dbDirectory.listFiles();
+        Arrays.sort(directoryListing);
+        boolean journalEmpty = true;
+        for (File child : directoryListing) {
+            if (child.getName().endsWith(".njs") && child.canRead()) {
+                if (child.length() > 0) { // Don't replay an empty journal file! - This can happen on an unclean shutdown
+                    System.out.println("Replaying journal segment [" + child.getName() + "]");
+                    JournalSegment journalSegment = new JournalSegment(this, child);
+                    try {
+                        journalSegment.replayOn(this);
+                    } catch (DuplicateNodeStoreException e) {
+                        System.err.println("Journal is in an inconsistent state!");
+                        throw new RuntimeException(e);
+                    }
+                    this.completeJournal.offer(journalSegment);
+                    journalEmpty = false;
+                }
+            }
+        }
+        if (journalEmpty) {
+            System.out.println("Journal empty");
+        } else {
+            System.out.println("Journal rebuilt");
+        }
+
+        if (this.getNode(this.instanceId) == null) {
+            System.out.println("No instance node found");
+            try {
+                Node instanceNode = new Node(this.instanceId, new WUUID(this.instanceId, this.instanceId), null, null, null, null);
+                instanceNode.makeSelfReferential();
+                getOpenJournal().registerNewNode(instanceNode);
+                System.out.println("Created instance node");
+            } catch (ClosedJournalException e) {
+                throw new RuntimeException(e);
+            } catch (DuplicateNodeStoreException e) {
+                throw new RuntimeException(e);
+            }
+        }
 
         for (UUID nodeId : registeredNodes.keySet()) {
             System.out.println(nodeId);
         }
+    }
+
+    public JSONObject getConfig() {
+        return this.config;
     }
 
     public String signPayload(byte[] payload) {
@@ -156,6 +203,11 @@ public class DatabaseInstance {
         }
         //JWSVerifier verifier = new Ed25519Verifier(publicJWK);
     }
+
+    public Node[] getAllNodes() {
+        return registeredNodes.values().toArray(new Node[0]);
+    }
+
     public Node newNode(String dataUri, Node creator, String schema) {
         try {
             UUID localId = null;
@@ -170,7 +222,8 @@ public class DatabaseInstance {
             if (creator != null) {
                 globalCreator = creator.getGlobalId();
             } else {
-                globalCreator = new WUUID(this.getInstanceId(), new UUID(0, 0));
+                creator = this.getNode(this.getInstanceId()); // Try and capture the creator node
+                globalCreator = new WUUID(this.getInstanceId(), this.getInstanceId()); // The instance node has this special WUUID, we can use this as the creator if we don't know where it actually came from
             }
             Node node = new Node(localId, globalId, creator, globalCreator, dataUri, schema);
             getOpenJournal().registerNewNode(node);

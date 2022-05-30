@@ -23,6 +23,7 @@ import java.util.*;
 
 public class JournalSegment {
     private Queue<JournalEntry> segmentActions;
+    private boolean localSegment;
     private boolean open;
     private Date openDate;
     private Date closeDate;
@@ -43,6 +44,7 @@ public class JournalSegment {
         this.saveFile = new File(databaseInstance.getDbLocation() + this.getId() + ".njs"); // Node journal segment
         this.saveFile.createNewFile();
         this.saveFileWriter = new FileWriter(this.saveFile);
+        this.localSegment = true;
     }
 
     public JournalSegment(DatabaseInstance databaseInstance, File file) throws IOException, UnvalidatedJournalSegment {
@@ -50,22 +52,27 @@ public class JournalSegment {
         this.segmentActions = new LinkedList<>();
         this.open = false;
         this.saveFile = file;
+        this.localSegment = true;
         if (!fromDump(new BufferedReader(new FileReader(file)))) {
             throw new UnvalidatedJournalSegment();
         }
         // Parse old journal
     }
 
-    public void registerNewNode(Node node) throws ClosedJournalException {
+    public void registerNewNode(Node node) throws ClosedJournalException, DuplicateNodeStoreException {
         if (this.open) {
-            this.segmentActions.add(new NewNodeJournalEntry(node));
-            this.databaseInstance.registerNode(node);
+            if (this.databaseInstance.getNode(node.getId()) == null && this.databaseInstance.getNode(node.getGlobalId()) == null) {
+                this.segmentActions.add(new NewNodeJournalEntry(node));
+                this.databaseInstance.registerNode(node);
+            } else {
+                throw new DuplicateNodeStoreException(node);
+            }
         } else {
             throw new ClosedJournalException(this);
         }
     }
 
-    public void replayOn(DatabaseInstance databaseInstance) {
+    public void replayOn(DatabaseInstance databaseInstance) throws DuplicateNodeStoreException {
         for (JournalEntry journalEntry : this.segmentActions) {
             if (journalEntry instanceof NewNodeJournalEntry) {
                 NewNodeJournalEntry newNodeJournalEntry = (NewNodeJournalEntry) journalEntry;
@@ -102,7 +109,6 @@ public class JournalSegment {
                             if (props.containsKey("entry-type") && props.get("entry-type").size() != 0) {
                                 switch (props.get("entry-type").get(0)) {
                                     case "new-node":
-                                        System.out.println("New node!");
                                         Date creationDate = null;
                                         if (props.containsKey("creation-timestamp") && props.get("creation-timestamp").size() != 0) {
                                             String creationTimestamp = props.get("creation-timestamp").get(0);
@@ -120,7 +126,7 @@ public class JournalSegment {
                                             globalId = WUUID.fromString(props.get("global-content-id").get(0));
                                         }
                                         WUUID oCNodeId = null;
-                                        if (props.get("global-creator-id\"") != null) {
+                                        if (props.get("global-creator-id") != null) {
                                             oCNodeId = WUUID.fromString(props.get("global-creator-id").get(0));
                                         }
                                         UUID cNodeId = null;
@@ -249,6 +255,10 @@ public class JournalSegment {
                         }
                     }
             }
+        }
+
+        if (sourceInstance == null) {
+            throw new UnvalidatedJournalSegment("Could not validate journal segment - source instance not identified - is this journal segment corrupted?");
         }
 
         MessageDigest digest = null;

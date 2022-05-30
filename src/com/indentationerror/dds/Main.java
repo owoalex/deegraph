@@ -17,6 +17,6 @@ public class Main {
         }, "shutdown-thread"));
 
         APIServer server = new APIServer(databaseInstance);
-        server.start();
+        server.start(databaseInstance.getConfig().getInt("port"));
     }
 }

@@ -1,5 +1,6 @@
 package com.indentationerror.dds;
 
+import java.security.SecureRandom;
 import java.util.Date;
 import java.util.UUID;
 
@@ -38,13 +39,15 @@ public class NewNodeJournalEntry extends JournalEntry {
         this.oCTime = oCTime;
     }
 
-    public void replayOn(DatabaseInstance databaseInstance) {
-        try {
-            Node node = new Node(this.localId, this.globalId, databaseInstance.getNode(this.cNode), this.oCNode, this.data, this.schema);
-            databaseInstance.registerNode(node);
-        } catch (DuplicateNodeStoreException e) {
-            throw new RuntimeException(e);
+    public void replayOn(DatabaseInstance databaseInstance) throws DuplicateNodeStoreException {
+        if (databaseInstance.getNode(this.globalId) != null) { // We already have this exact node in the database!
+            throw new DuplicateNodeStoreException(databaseInstance.getNode(this.globalId));
         }
+        while (databaseInstance.getNode(this.localId) != null) { // Hmmm, UUID collision, but not the same origin. This can happen for a few reasons - let's just randomize the last bit to get a new UUID for local purposed
+            this.localId = new UUID(this.localId.getMostSignificantBits(), new SecureRandom().nextLong());
+        }
+        Node node = new Node(this.localId, this.globalId, databaseInstance.getNode(this.cNode), this.oCNode, this.data, this.schema);
+        databaseInstance.registerNode(node);
     }
 
     public UUID getId() {

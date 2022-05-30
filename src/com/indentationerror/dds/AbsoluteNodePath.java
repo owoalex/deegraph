@@ -5,12 +5,17 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class AbsoluteNodePath {
+
     String[] pathComponents;
-    
     public AbsoluteNodePath(String path) {
         this.pathComponents = path.split("/");
     }
-    
+
+    /**
+     * Returns the node the path refers to. If the path has a * selector, it will return null.
+     * @param databaseInstance
+     * @return The node if path is exact, else null
+     */
     public Node getNodeFrom(DatabaseInstance databaseInstance) {
         Node tailNode = null;
         int i = 0;
@@ -26,12 +31,19 @@ public class AbsoluteNodePath {
                 tailNode = null;
             }
         }
-        while (i < pathTraversalLength) {
-            if (pathComponents[i].length() > 0) {
-                tailNode = tailNode.getProperty(pathComponents[i]);
+        if (tailNode != null) {
+            while (i < pathTraversalLength) {
+                if (pathComponents[i].length() > 0) {
+                    tailNode = tailNode.getProperty(pathComponents[i]);
+                }
+                i++;
             }
-            i++;
         }
         return tailNode;
+    }
+
+    @Override
+    public String toString() {
+        return String.join("/", pathComponents);
     }
 }

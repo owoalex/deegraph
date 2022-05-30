@@ -65,9 +65,9 @@ public class APIServer {
     public APIServer(DatabaseInstance databaseInstance) {
         this.databaseInstance = databaseInstance;
     }
-    public void start() throws Exception {
+    public void start(int port) throws Exception {
         try {
-            InetSocketAddress address = new InetSocketAddress(8000);
+            InetSocketAddress address = new InetSocketAddress(port);
             HttpsServer httpsServer = HttpsServer.create(address, 0);
 
             CertificateFactory cf = CertificateFactory.getInstance("X.509");
@@ -82,9 +82,9 @@ public class APIServer {
 
             ks.setKeyEntry(
                     "serverCert",
-                    APIServer.readPrivateKey(new File("certs/privkey.pem")),
+                    APIServer.readPrivateKey(new File(this.databaseInstance.getConfig().getJSONObject("ssl_certs").getString("private_key"))),
                     randomPassword,
-                    cf.generateCertificates(new FileInputStream("certs/fullchain.pem")).toArray(new Certificate[0])
+                    cf.generateCertificates(new FileInputStream(this.databaseInstance.getConfig().getJSONObject("ssl_certs").getString("full_chain"))).toArray(new Certificate[0])
             );
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             tmf.init(ks);
@@ -95,7 +95,7 @@ public class APIServer {
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(keyManagerFactory.getKeyManagers(), tmf.getTrustManagers(), random);
 
-            System.out.println("Configuring server");
+            System.out.println("Configuring API server");
             httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext) {
                 public void configure(HttpsParameters params) {
                     try {
@@ -119,9 +119,10 @@ public class APIServer {
             httpsServer.createContext("/api/v1", new APIHandlerV1(this.databaseInstance));
             httpsServer.setExecutor(new ThreadPoolExecutor(4, 8, 30, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(100)));
             httpsServer.start();
-            System.out.println("Initialising server");
+            System.out.println("API server online on port " + port + " of localhost");
+            System.out.println("====================[ READY ]====================");
         } catch (Exception exception) {
-            System.err.println("Failed to create HTTPS server on port " + 8000 + " of localhost");
+            System.err.println("Failed to create HTTPS server on port " + port + " of localhost");
             exception.printStackTrace();
         }
     }

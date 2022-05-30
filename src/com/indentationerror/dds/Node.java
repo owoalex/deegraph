@@ -1,6 +1,5 @@
 package com.indentationerror.dds;
 
-import java.nio.file.FileAlreadyExistsException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.UUID;
@@ -16,7 +15,7 @@ public class Node {
     private String schema;
     private HashMap<String, Node> properties;
     private HashMap<String, Node> propertyOf;
-    Node(UUID localId, WUUID globalId, Node cNode, WUUID oCNode, String data, String schema) throws DuplicateNodeStoreException {
+    Node(UUID localId, WUUID globalId, Node cNode, WUUID oCNode, String data, String schema) {
         this.cTime = new Date();
         this.oCTime = new Date();
         this.oCNode = oCNode;
@@ -27,6 +26,11 @@ public class Node {
         this.localId = localId;
         this.globalId = globalId;
         this.cNode = cNode;
+    }
+
+    void makeSelfReferential() {
+        this.oCNode = this.globalId;
+        this.cNode = this;
     }
 
     public UUID getId() {
@@ -47,6 +51,10 @@ public class Node {
 
     public Node getCNode() {
         return this.cNode;
+    }
+
+    void setCNode(Node cNode) {
+        this.cNode = cNode;
     }
 
     public WUUID getOCNodeId() {

@@ -4,15 +4,13 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsExchange;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.*;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.TimeZone;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -23,6 +21,34 @@ public class APIHandlerV1 implements HttpHandler {
         this.databaseInstance = databaseInstance;
     }
 
+    private JSONObject nodeToJson(Node node) {
+        TimeZone tz = TimeZone.getTimeZone("UTC");
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
+        df.setTimeZone(tz);
+
+        JSONObject response = new JSONObject();
+        response.put("@id", node.getId());
+        if (!node.getGlobalId().getInstanceId().equals(this.databaseInstance.getInstanceId())) {
+            response.put("@oid", node.getGlobalId());
+        }
+        response.put("@ctime", df.format(node.getCTime()));
+        if (!node.getCTime().equals(node.getOCTime())) {
+            response.put("@octime", df.format(node.getOCTime()));
+        }
+        if (node.getCNode() == null) {
+            response.put("@ocnode", node.getOCNodeId());
+        }
+        if (node.getCNode() != null) {
+            response.put("@cnode", node.getCNode().getId());
+        }
+        response.put("@data", node.getData());
+        response.put("@schema", node.getSchema());
+        for (String key : node.getProperties().keySet()) {
+            response.put(key, node.getProperty(key).getId());
+        }
+
+        return response;
+    }
     @Override
     public void handle(HttpExchange t) throws IOException {
         HttpsExchange httpsExchange = (HttpsExchange) t;
@@ -48,7 +74,7 @@ public class APIHandlerV1 implements HttpHandler {
         df.setTimeZone(tz);
 
         try {
-            Node userNode = this.databaseInstance.newNode(null, null, null);
+            Node userNode = this.databaseInstance.getNode(this.databaseInstance.getInstanceId()); // Do everything from the root node for now
             Node headNode = userNode;
             Node tailNode = headNode;
             boolean outputTailNode = false;
@@ -62,8 +88,29 @@ public class APIHandlerV1 implements HttpHandler {
                         case "@query":
                             String[] reconstruct = Arrays.copyOfRange(requestPath, 1, requestPath.length);
                             String queryText = String.join("/", reconstruct);
-                            Query query = new Query(queryText);
-                            query.runOn(this.databaseInstance);
+                            Query query = new Query(queryText, userNode);
+                            switch (query.getQueryType()) {
+                                case GRANT:
+                                    query.runGrantQuery(this.databaseInstance);
+                                    break;
+                                case SELECT:
+                                    List<Map<String, Node>> results = query.runSelectQuery(this.databaseInstance);
+                                    JSONArray outputArray = new JSONArray();
+                                    for (Map<String, Node> result : results) {
+                                        JSONObject outNode = new JSONObject();
+                                        for (String key : result.keySet()) {
+                                            Node node = result.get(key);
+                                            if (node != null) {
+                                                outNode.put(key, nodeToJson(node));
+                                            } else {
+                                                outNode.put(key, JSONObject.NULL);
+                                            }
+                                        }
+                                        outputArray.put(outNode);
+                                    }
+                                    response.put("@rows", outputArray);
+                                    break;
+                            }
                             break;
                         case "@new":
                             Node newNode = this.databaseInstance.newNode("data:text/plain,TEST", userNode, null);
@@ -99,19 +146,7 @@ public class APIHandlerV1 implements HttpHandler {
                     responseCode = 404;
                     response.put("@error", "NodeNotFound");
                 } else {
-                    response.put("@id", tailNode.getId());
-                    response.put("@oid", tailNode.getGlobalId());
-                    response.put("@ctime", df.format(tailNode.getCTime()));
-                    response.put("@octime", df.format(tailNode.getOCTime()));
-                    if (tailNode.getCNode() != null) {
-                        response.put("@cnode", tailNode.getCNode().getId());
-                    }
-                    response.put("@ocnode", tailNode.getOCNodeId());
-                    response.put("@data", tailNode.getData());
-                    response.put("@schema", tailNode.getSchema());
-                    for (String key : tailNode.getProperties().keySet()) {
-                        response.put(key, tailNode.getProperty(key).getId());
-                    }
+                    response = nodeToJson(tailNode);
                 }
             }
         } catch (Exception e) {
