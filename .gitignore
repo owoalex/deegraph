@@ -1,8 +1,12 @@
 # Compiled class file
 *.class
 
+# Don't upload a database or secrets
 *.jwk
 *.njs
+
+# Don't upload the default data store
+/ddsdata/*
 
 # Log file
 *.log
