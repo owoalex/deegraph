@@ -256,6 +256,8 @@ public class Query {
         candidateNodes = new ArrayList<>(Arrays.asList(databaseInstance.getAllNodes()));
         ArrayList<Node> newCandidates = new ArrayList<>();
 
+        System.out.println(condition.getClass());
+
         if (condition != null) {
             for (Node candidate : candidateNodes) {
                 if (condition.eval(new NodePathContext(this.actor, candidate))) {

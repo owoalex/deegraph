@@ -5,35 +5,38 @@ import java.text.ParseException;
 import java.util.Arrays;
 
 public class EqualityCondition extends Condition {
-    private String e1;
-    private String e2;
+    private Condition c1;
+    private Condition c2;
 
-    public EqualityCondition(DatabaseInstance databaseInstance, String e1, String e2) {
+    public EqualityCondition(DatabaseInstance databaseInstance, Condition c1, Condition c2) {
         super(databaseInstance);
-        this.e1 = e1;
-        this.e2 = e2;
+        this.c1 = c1;
+        this.c2 = c2;
     }
 
     @Override
     public boolean eval(NodePathContext context) {
         try {
+            String e1 = this.c1.asLiteral(context);
+            String e2 = this.c2.asLiteral(context);
+            
             byte[] rawValue1 = null;
             byte[] rawValue2 = null;
 
-            if (this.e1.startsWith("\"")) { // Decide whether to treat as literal or not
-                rawValue1 = this.e1.substring(1, this.e1.length() - 1).getBytes(StandardCharsets.UTF_8);
+            if (e1.startsWith("\"")) { // Decide whether to treat as literal or not
+                rawValue1 = e1.substring(1, e1.length() - 1).getBytes(StandardCharsets.UTF_8);
             } else {
-                Node e1Node = new RelativeNodePath(this.e1, context).toAbsolute().getNodeFrom(this.databaseInstance);
+                Node e1Node = new RelativeNodePath(e1, context).toAbsolute().getNodeFrom(this.databaseInstance);
                 if (e1Node != null && e1Node.getData() != null) {
                     rawValue1 = new DataUrl(e1Node.getData()).getRawData();
                 }
             }
 
 
-            if (this.e2.startsWith("\"")) { // Decide whether to treat as literal or not
-                rawValue2 = this.e2.substring(1, this.e2.length() - 1).getBytes(StandardCharsets.UTF_8);
+            if (e2.startsWith("\"")) { // Decide whether to treat as literal or not
+                rawValue2 = e2.substring(1, e2.length() - 1).getBytes(StandardCharsets.UTF_8);
             } else {
-                Node e2Node = new RelativeNodePath(this.e2, context).toAbsolute().getNodeFrom(this.databaseInstance);
+                Node e2Node = new RelativeNodePath(e2, context).toAbsolute().getNodeFrom(this.databaseInstance);
                 if (e2Node != null && e2Node.getData() != null) {
                     rawValue2 = new DataUrl(e2Node.getData()).getRawData();
                 }

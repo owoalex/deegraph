@@ -1,6 +1,6 @@
 package com.indentationerror.dds;
 
-public class LogicalOrCondition extends Condition {
+public class LogicalOrCondition extends LogicalCondition {
     private Condition condition1;
     private Condition condition2;
 
