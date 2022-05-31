@@ -3,7 +3,7 @@ package com.indentationerror.dds;
 import java.util.LinkedList;
 import java.util.Locale;
 
-public class Condition {
+public abstract class Condition {
     protected DatabaseInstance databaseInstance;
     protected Condition(DatabaseInstance databaseInstance) {
         this.databaseInstance = databaseInstance;

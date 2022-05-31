@@ -1,5 +1,6 @@
 package com.indentationerror.dds;
 
+import java.util.ArrayList;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -34,12 +35,24 @@ public class AbsoluteNodePath {
         if (tailNode != null) {
             while (i < pathTraversalLength) {
                 if (pathComponents[i].length() > 0) {
-                    tailNode = tailNode.getProperty(pathComponents[i]);
+                    if (tailNode != null) {
+                        tailNode = tailNode.getProperty(pathComponents[i]);
+                    }
                 }
                 i++;
             }
         }
         return tailNode;
+    }
+
+    public Node[] getMatchingNodes(DatabaseInstance databaseInstance, Node[] searchSpace) {
+        ArrayList<Node> output = new ArrayList<>();
+
+        for (Node node : searchSpace) {
+
+        }
+
+        return output.toArray(new Node[0]);
     }
 
     @Override

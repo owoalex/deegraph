@@ -187,6 +187,9 @@ public class Query {
                 case "DELEGATE":
                     actions.add(AuthorizedAction.DELEGATE);
                     break;
+                case "GRANT":
+                    actions.add(AuthorizedAction.GRANT);
+                    break;
                 default:
                     throw new ParseException("'" + current + "' is not a valid permission", 0);
             }
@@ -234,7 +237,7 @@ public class Query {
         }
         Condition condition = null;
         String schemaLimit = null;
-        ArrayList<Node> candidateNodes = new ArrayList<>();
+        ArrayList<Node> candidateNodes = new ArrayList<>(Arrays.asList(databaseInstance.getAllNodes()));
         escape = (current == null);
         while (!escape) {
             switch (current.toUpperCase(Locale.ROOT)) {
@@ -253,20 +256,15 @@ public class Query {
             }
         }
 
-        candidateNodes = new ArrayList<>(Arrays.asList(databaseInstance.getAllNodes()));
-        ArrayList<Node> newCandidates = new ArrayList<>();
-
-        System.out.println(condition.getClass());
-
         if (condition != null) {
+            ArrayList<Node> newCandidates = new ArrayList<>();
             for (Node candidate : candidateNodes) {
                 if (condition.eval(new NodePathContext(this.actor, candidate))) {
                     newCandidates.add(candidate);
                 }
             }
+            candidateNodes = newCandidates;
         }
-
-        candidateNodes = newCandidates;
 
         ArrayList<Map<String, Node>> outputMaps = new ArrayList<>();
         for (Node candidate : candidateNodes) {
