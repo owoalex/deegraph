@@ -1,8 +1,6 @@
 package com.indentationerror.dds.server;
 
-import com.indentationerror.dds.database.AbsoluteNodePath;
-import com.indentationerror.dds.database.DatabaseInstance;
-import com.indentationerror.dds.database.Node;
+import com.indentationerror.dds.database.*;
 import com.indentationerror.dds.query.Query;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
@@ -33,17 +31,17 @@ public class APIHandlerV1 implements HttpHandler {
         JSONObject response = new JSONObject();
         response.put("@id", node.getId());
         if (!node.getGlobalId().getInstanceId().equals(this.databaseInstance.getInstanceId())) {
-            response.put("@oid", node.getGlobalId());
+            response.put("@global_id", node.getGlobalId());
         }
-        response.put("@ctime", df.format(node.getCTime()));
+        response.put("@created", df.format(node.getCTime()));
         if (!node.getCTime().equals(node.getOCTime())) {
-            response.put("@octime", df.format(node.getOCTime()));
+            response.put("@originally_created", df.format(node.getOCTime()));
         }
         if (node.getCNode() == null) {
-            response.put("@ocnode", node.getOCNodeId());
+            response.put("@original_creator", node.getOCNodeId());
         }
         if (node.getCNode() != null) {
-            response.put("@cnode", node.getCNode().getId());
+            response.put("@creator", node.getCNode().getId());
         }
         response.put("@data", node.getData());
         response.put("@schema", node.getSchema());
@@ -76,9 +74,26 @@ public class APIHandlerV1 implements HttpHandler {
             Node tailNode = headNode;
             boolean outputTailNode = false;
 
+            String bodyContent = "";
+
+            InputStreamReader isr = new InputStreamReader(t.getRequestBody(), Charset.defaultCharset());
+            BufferedReader br = new BufferedReader(isr);
+            String line = br.readLine();
+            while (line != null) {
+                bodyContent = bodyContent + line + "\n";
+                line = br.readLine();
+            }
+            //System.out.println("BC: " + bodyContent);
+
             if (requestPath.length > 0) {
                 if (requestPath[0].startsWith("@")) {
                     switch (requestPath[0]) {
+                        case "@resolve_path":
+                            bodyContent = URLDecoder.decode(bodyContent.trim(), Charset.defaultCharset()).trim();
+                            //System.out.println("pth: " + bodyContent);
+                            tailNode = new RelativeNodePath(bodyContent).toAbsolute(new NodePathContext(userNode, userNode)).getNodeFrom(databaseInstance);
+                            outputTailNode = true;
+                            break;
                         case "@auth":
                             response.put("@token", requestPath[1]);
                             break;
@@ -86,14 +101,7 @@ public class APIHandlerV1 implements HttpHandler {
                             String queryText = "";
 
                             if (t.getRequestMethod().toUpperCase(Locale.ROOT).equals("POST")) {
-                                InputStreamReader isr = new InputStreamReader(t.getRequestBody(), Charset.defaultCharset());
-                                BufferedReader br = new BufferedReader(isr);
-                                String line = br.readLine();
-                                while (line != null) {
-                                    queryText = queryText + line + "\n";
-                                    line = br.readLine();
-                                }
-                                System.out.println(queryText);
+                                queryText = bodyContent;
                             } else {
                                 String[] reconstruct = Arrays.copyOfRange(requestPath, 1, requestPath.length);
                                 queryText = String.join("/", reconstruct);
@@ -125,11 +133,14 @@ public class APIHandlerV1 implements HttpHandler {
                             }
                             break;
                         case "@new":
-                            Node newNode = this.databaseInstance.newNode("data:text/plain,TEST", userNode, null);
+                            Node newNode = this.databaseInstance.newNode(bodyContent.trim(), userNode, null);
                             response.put("@id", newNode.getId());
                             break;
                         case "@server_info":
                             response.put("@instance_id", this.databaseInstance.getInstanceId().toString());
+                            break;
+                        default:
+                            response.put("@error", "EndpointNotFound");
                             break;
                     }
                 } else {
@@ -146,7 +157,8 @@ public class APIHandlerV1 implements HttpHandler {
                             break;
                     }
                     String[] reconstruct = Arrays.copyOfRange(requestPath, 0, range);
-                    tailNode = new AbsoluteNodePath(String.join("/", reconstruct)).getNodeFrom(this.databaseInstance);
+                    tailNode = new RelativeNodePath(String.join("/", reconstruct)).toAbsolute(new NodePathContext(userNode, userNode)).getNodeFrom(databaseInstance);
+                    //System.out.println(String.join("/", reconstruct));
                     //response.put("@request_path", String.join("/", reconstruct));
                 }
             } else {

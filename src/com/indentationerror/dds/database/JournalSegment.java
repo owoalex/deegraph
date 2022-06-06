@@ -360,7 +360,7 @@ public class JournalSegment {
                 sb.append("\r\n");
                 String data = newNodeEntry.getData();
                 if (data != null) {
-                    sb.append(data);
+                    sb.append(data.replaceAll("\r\n", "\n").replaceAll("\n", "\r\n")); // Normalise everything to \r\n
                     sb.append("\r\n");
                 }
             }
