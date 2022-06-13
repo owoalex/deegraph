@@ -18,6 +18,9 @@ public class RelativeNodePath extends NodePath {
     }
 
     public AbsoluteNodePath toAbsolute(NodePathContext nodePathContext) {
+        if (this.pathString.startsWith("/")) { // Special case, this is an absolute path
+            return new AbsoluteNodePath("{" + nodePathContext.getActor().getId() + "}" + this.pathString);
+        }
         String[] pathComponents = this.pathComponents.clone(); // Avoid side effects
         String objectId = null;
         if (nodePathContext.getObject() != null) {

@@ -2,6 +2,7 @@ package com.indentationerror.dds.database;
 
 import com.indentationerror.dds.exceptions.ClosedJournalException;
 import com.indentationerror.dds.exceptions.DuplicateNodeStoreException;
+import com.indentationerror.dds.exceptions.MissingNodeException;
 import com.indentationerror.dds.exceptions.UnvalidatedJournalSegment;
 import com.indentationerror.dds.formats.WUUID;
 import com.nimbusds.jose.JOSEException;
@@ -31,27 +32,27 @@ public class JournalSegment {
     private Date openDate;
     private Date closeDate;
     private UUID journalUuid;
-    private DatabaseInstance databaseInstance;
+    private GraphDatabaseBacking graphDatabaseBacking;
     private UUID originalDatabaseInstanceId;
 
     private File saveFile;
     private FileWriter saveFileWriter;
 
-    public JournalSegment(DatabaseInstance databaseInstance) throws IOException {
+    public JournalSegment(GraphDatabaseBacking graphDatabaseBacking) throws IOException {
         this.segmentActions = new LinkedList<>();
         this.open = true;
-        this.databaseInstance = databaseInstance;
+        this.graphDatabaseBacking = graphDatabaseBacking;
         this.openDate = new Date();
         this.journalUuid = UUID.randomUUID();
-        this.originalDatabaseInstanceId = databaseInstance.getInstanceId();
-        this.saveFile = new File(databaseInstance.getDbLocation() + this.getId() + ".njs"); // Node journal segment
+        this.originalDatabaseInstanceId = graphDatabaseBacking.getInstanceId();
+        this.saveFile = new File(graphDatabaseBacking.getDbLocation() + this.getId() + ".njs"); // Node journal segment
         this.saveFile.createNewFile();
         this.saveFileWriter = new FileWriter(this.saveFile);
         this.localSegment = true;
     }
 
-    public JournalSegment(DatabaseInstance databaseInstance, File file) throws IOException, UnvalidatedJournalSegment {
-        this.databaseInstance = databaseInstance;
+    public JournalSegment(GraphDatabaseBacking graphDatabaseBacking, File file) throws IOException, UnvalidatedJournalSegment {
+        this.graphDatabaseBacking = graphDatabaseBacking;
         this.segmentActions = new LinkedList<>();
         this.open = false;
         this.saveFile = file;
@@ -64,9 +65,9 @@ public class JournalSegment {
 
     public void registerNewNode(Node node) throws ClosedJournalException, DuplicateNodeStoreException {
         if (this.open) {
-            if (this.databaseInstance.getNode(node.getId()) == null && this.databaseInstance.getNode(node.getGlobalId()) == null) {
+            if (this.graphDatabaseBacking.getNode(node.getId()) == null && this.graphDatabaseBacking.getNode(node.getGlobalId()) == null) {
                 this.segmentActions.add(new NewNodeJournalEntry(node));
-                this.databaseInstance.registerNode(node);
+                this.graphDatabaseBacking.registerNode(node);
             } else {
                 throw new DuplicateNodeStoreException(node);
             }
@@ -75,11 +76,34 @@ public class JournalSegment {
         }
     }
 
-    public void replayOn(DatabaseInstance databaseInstance) throws DuplicateNodeStoreException {
+    public void registerNewRelation(Node referrer, String referenceName, Node subject) throws ClosedJournalException {
+        if (this.open) {
+            this.segmentActions.add(new AddRelationJournalEntry(referrer, referenceName, subject));
+        } else {
+            throw new ClosedJournalException(this);
+        }
+    }
+
+    public void replayOn(GraphDatabase graphDatabase) {
+        this.replayOn(graphDatabase, true);
+    }
+
+    public void replayOn(GraphDatabase graphDatabase, boolean faultTolerant) {
         for (JournalEntry journalEntry : this.segmentActions) {
-            if (journalEntry instanceof NewNodeJournalEntry) {
-                NewNodeJournalEntry newNodeJournalEntry = (NewNodeJournalEntry) journalEntry;
-                newNodeJournalEntry.replayOn(databaseInstance);
+            try {
+                journalEntry.replayOn(graphDatabase);
+            } catch (MissingNodeException e) {
+                if (!faultTolerant) {
+                    throw new RuntimeException(e);
+                }
+            } catch (DuplicateNodeStoreException e) {
+                if (!faultTolerant) {
+                    throw new RuntimeException(e);
+                }
+            } catch (ParseException e) {
+                if (!faultTolerant) {
+                    throw new RuntimeException(e);
+                }
             }
         }
     }
@@ -111,46 +135,67 @@ public class JournalSegment {
                         try {
                             if (props.containsKey("entry-type") && props.get("entry-type").size() != 0) {
                                 switch (props.get("entry-type").get(0)) {
-                                    case "new-node":
-                                        Date creationDate = null;
-                                        if (props.containsKey("creation-timestamp") && props.get("creation-timestamp").size() != 0) {
-                                            String creationTimestamp = props.get("creation-timestamp").get(0);
-                                            TemporalAccessor ta = DateTimeFormatter.ISO_INSTANT.parse(creationTimestamp);
-                                            creationDate = Date.from(Instant.from(ta));
-                                        }
-                                        Date globalCreationDate = null;
-                                        if (props.containsKey("global-creation-timestamp") && props.get("global-creation-timestamp").size() != 0) {
-                                            String creationTimestamp = props.get("global-creation-timestamp").get(0);
-                                            TemporalAccessor ta = DateTimeFormatter.ISO_INSTANT.parse(creationTimestamp);
-                                            globalCreationDate = Date.from(Instant.from(ta));
-                                        }
-                                        WUUID globalId = null;
-                                        if (props.get("global-content-id") != null) {
-                                            globalId = WUUID.fromString(props.get("global-content-id").get(0));
-                                        }
-                                        WUUID oCNodeId = null;
-                                        if (props.get("global-creator-id") != null) {
-                                            oCNodeId = WUUID.fromString(props.get("global-creator-id").get(0));
-                                        }
-                                        UUID cNodeId = null;
-                                        if (props.get("creator-id") != null) {
-                                            cNodeId = UUID.fromString(props.get("creator-id").get(0));
-                                        }
-                                        UUID localId = null;
-                                        if (props.get("content-id") != null) {
-                                            localId = UUID.fromString(props.get("content-id").get(0));
-                                        }
-                                        String schema = null;
-                                        if (props.get("schema") != null) {
-                                            schema = props.get("schema").get(0);
-                                        }
-                                        String contentStr = null;
-                                        if (content != null) {
-                                            contentStr = String.join("\n", content.toArray(new String[0]));
-                                        }
+                                    case "new-node": {
+                                            Date creationDate = null;
+                                            if (props.containsKey("creation-timestamp") && props.get("creation-timestamp").size() != 0) {
+                                                String creationTimestamp = props.get("creation-timestamp").get(0);
+                                                TemporalAccessor ta = DateTimeFormatter.ISO_INSTANT.parse(creationTimestamp);
+                                                creationDate = Date.from(Instant.from(ta));
+                                            }
+                                            Date globalCreationDate = null;
+                                            if (props.containsKey("global-creation-timestamp") && props.get("global-creation-timestamp").size() != 0) {
+                                                String creationTimestamp = props.get("global-creation-timestamp").get(0);
+                                                TemporalAccessor ta = DateTimeFormatter.ISO_INSTANT.parse(creationTimestamp);
+                                                globalCreationDate = Date.from(Instant.from(ta));
+                                            }
+                                            WUUID globalId = null;
+                                            if (props.get("global-content-id") != null) {
+                                                globalId = WUUID.fromString(props.get("global-content-id").get(0));
+                                            }
+                                            WUUID oCNodeId = null;
+                                            if (props.get("global-creator-id") != null) {
+                                                oCNodeId = WUUID.fromString(props.get("global-creator-id").get(0));
+                                            }
+                                            UUID cNodeId = null;
+                                            if (props.get("creator-id") != null) {
+                                                cNodeId = UUID.fromString(props.get("creator-id").get(0));
+                                            }
+                                            UUID localId = null;
+                                            if (props.get("content-id") != null) {
+                                                localId = UUID.fromString(props.get("content-id").get(0));
+                                            }
+                                            String schema = null;
+                                            if (props.get("schema") != null) {
+                                                schema = props.get("schema").get(0);
+                                            }
+                                            String contentStr = null;
+                                            if (content != null) {
+                                                contentStr = String.join("\n", content.toArray(new String[0]));
+                                            }
 
-                                        NewNodeJournalEntry nodeJournalEntry = new NewNodeJournalEntry(localId, globalId, cNodeId, oCNodeId, contentStr, schema, creationDate, globalCreationDate);
-                                        this.segmentActions.offer(nodeJournalEntry);
+                                            NewNodeJournalEntry nodeJournalEntry = new NewNodeJournalEntry(localId, globalId, cNodeId, oCNodeId, contentStr, schema, creationDate, globalCreationDate);
+                                            this.segmentActions.offer(nodeJournalEntry);
+                                        }
+                                        break;
+                                    case "archive-node": {
+                                            Date ts = null;
+                                            if (props.containsKey("archive-timestamp") && props.get("archive-timestamp").size() != 0) {
+                                                String creationTimestamp = props.get("archive-timestamp").get(0);
+                                                TemporalAccessor ta = DateTimeFormatter.ISO_INSTANT.parse(creationTimestamp);
+                                                ts = Date.from(Instant.from(ta));
+                                            }
+                                            WUUID globalId = null;
+                                            if (props.get("global-content-id") != null) {
+                                                globalId = WUUID.fromString(props.get("global-content-id").get(0));
+                                            }
+                                            UUID localId = null;
+                                            if (props.get("content-id") != null) {
+                                                localId = UUID.fromString(props.get("content-id").get(0));
+                                            }
+
+                                            NodeArchiveJournalEntry nodeJournalEntry = new NodeArchiveJournalEntry(localId, globalId, ts);
+                                            this.segmentActions.offer(nodeJournalEntry);
+                                        }
                                         break;
                                 }
                             }
@@ -271,7 +316,7 @@ public class JournalSegment {
             digest = MessageDigest.getInstance("SHA-256");
             byte[] bodyHash = digest.digest(bodyStringBuilder.toString().getBytes(StandardCharsets.UTF_8));
 
-            File jwkFile = new File(this.databaseInstance.getDbLocation() + sourceInstance.toString() + ".public.jwk");
+            File jwkFile = new File(this.graphDatabaseBacking.getDbLocation() + sourceInstance.toString() + ".public.jwk");
 
             if (jwkFile.exists() && jwkFile.isFile() && jwkFile.canRead()) {
                 StringBuilder jsonBuilder = new StringBuilder();
@@ -302,8 +347,8 @@ public class JournalSegment {
             if (publicJWK != null && parsedJWSObject != null) {
                 try {
                     if (parsedJWSObject.verify(new Ed25519Verifier(publicJWK))) {
-                        if (this.databaseInstance.getInstanceId() != sourceInstance) {
-                            this.databaseInstance = null; // Make sure we don't get confused about what created this
+                        if (this.graphDatabaseBacking.getInstanceId() != sourceInstance) {
+                            this.graphDatabaseBacking = null; // Make sure we don't get confused about what created this
                         }
                         return true;
                     } else {
@@ -316,7 +361,7 @@ public class JournalSegment {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
-        this.databaseInstance = null; // Since this segment couldn't be verified, make sure we don't attach a database instance
+        this.graphDatabaseBacking = null; // Since this segment couldn't be verified, make sure we don't attach a database instance
         return false;
     }
 
@@ -363,6 +408,13 @@ public class JournalSegment {
                     sb.append(data.replaceAll("\r\n", "\n").replaceAll("\n", "\r\n")); // Normalise everything to \r\n
                     sb.append("\r\n");
                 }
+            }
+            if (currentEntry instanceof NodeArchiveJournalEntry) {
+                NodeArchiveJournalEntry specificEntry = ((NodeArchiveJournalEntry) currentEntry);
+                sb.append("Entry-Type: archive-node\r\n");
+                sb.append("Global-Content-ID: "); sb.append(specificEntry.getGlobalId()); sb.append("\r\n");
+                sb.append("Content-ID: "); sb.append(specificEntry.getLocalId()); sb.append("\r\n");
+                sb.append("Archive-Timestamp: "); sb.append(df.format(specificEntry.getTimestamp())); sb.append("\r\n");
             }
             segments[currentSegment] = sb.toString();
             currentSegment++;
@@ -423,7 +475,7 @@ public class JournalSegment {
             digest = MessageDigest.getInstance("SHA-256");
             byte[] bodyHash = digest.digest(bodyString.getBytes(StandardCharsets.UTF_8));
             header.append("Body-Signature: ");
-            header.append(this.databaseInstance.signPayload(bodyHash));
+            header.append(this.graphDatabaseBacking.signPayload(bodyHash));
             header.append("\r\n");
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);

@@ -23,15 +23,12 @@ import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.util.*;
 
-public class DatabaseInstance {
+public class GraphDatabaseBacking {
     private HashMap<UUID, Node> registeredNodes; // Stores all the nodes we have loaded in the database
 
     private ArrayList<WUUID> missingNodes; // Stores node global ids that are referenced but not found in database.
 
-    private ArrayList<AuthorizationRule> authorizationRules; // Stores all the parsed authorization rules used for generating permissions
-    private ArrayList<AuthenticationMethod> authenticationMethods;
 
-    private HashMap<UUID, HashMap<UUID, AuthorizationRule>> relevantRule; // To save searching for rules that matter between two nodes every request, cache the result of the search
     private UUID instanceId;
     private String dbLocation;
 
@@ -44,8 +41,10 @@ public class DatabaseInstance {
 
     private JSONObject config;
 
+    private GraphDatabase graphDatabase;
+
     private static byte[] NAMESPACE_DNS = UUIDUtils.asBytes(UUID.fromString("6ba7b810-9dad-11d1-80b4-00c04fd430c8"));
-    public DatabaseInstance(String configFilePath) throws IOException, NoSuchAlgorithmException, UnvalidatedJournalSegment {
+    GraphDatabaseBacking(String configFilePath) throws IOException {
         File configFile = new File(configFilePath);
         StringBuilder jsonBuilder = new StringBuilder();
         try (BufferedReader br = new BufferedReader(new FileReader(configFile))) {
@@ -55,6 +54,11 @@ public class DatabaseInstance {
             }
         }
         this.config = new JSONObject(jsonBuilder.toString());
+    }
+
+    void init(GraphDatabase graphDatabase) throws IOException, NoSuchAlgorithmException, UnvalidatedJournalSegment {
+        this.graphDatabase = graphDatabase;
+
         String fqdn = this.config.getString("fqdn");
         if (this.config.has("journal_lifetime")) {
             maxJournalAgeMs = 1000 * this.config.getInt("journal_lifetime");
@@ -97,6 +101,7 @@ public class DatabaseInstance {
 
         File jwkFile = new File(this.dbLocation + this.instanceId.toString() + ".private.jwk");
 
+        StringBuilder jsonBuilder = new StringBuilder();
         if (jwkFile.exists() && jwkFile.isFile() && jwkFile.canRead()) {
             System.out.println("Loading private key");
             jsonBuilder = new StringBuilder();
@@ -144,7 +149,6 @@ public class DatabaseInstance {
             }
         }
 
-        this.authenticationMethods = new ArrayList<>();
         this.currentJournalSegment = new JournalSegment(this);
 
         System.out.println("Restoring journal from disk");
@@ -157,12 +161,7 @@ public class DatabaseInstance {
                 if (child.length() > 0) { // Don't replay an empty journal file! - This can happen on an unclean shutdown
                     System.out.println("Replaying journal segment [" + child.getName() + "]");
                     JournalSegment journalSegment = new JournalSegment(this, child);
-                    try {
-                        journalSegment.replayOn(this);
-                    } catch (DuplicateNodeStoreException e) {
-                        System.err.println("Journal is in an inconsistent state!");
-                        throw new RuntimeException(e);
-                    }
+                    journalSegment.replayOn(this.graphDatabase, false);
                     this.completeJournal.offer(journalSegment);
                     journalEmpty = false;
                 }
@@ -239,6 +238,7 @@ public class DatabaseInstance {
             throw new RuntimeException(e);
         }
     }
+
     String getDbLocation() {
         return this.dbLocation;
     }
@@ -270,6 +270,10 @@ public class DatabaseInstance {
         this.registeredNodes.put(node.getId(), node);
     }
 
+    public void unregisterNode(Node node) {
+        this.registeredNodes.remove(node.getId());
+    }
+
     public Node getNode(WUUID id) {
         if (this.registeredNodes.containsKey(id.getOriginalNodeId())) {
             return this.registeredNodes.get(id.getOriginalNodeId());
@@ -294,4 +298,6 @@ public class DatabaseInstance {
     public void shutdown() throws IOException {
         this.getOpenJournal().close();
     }
+
+
 }

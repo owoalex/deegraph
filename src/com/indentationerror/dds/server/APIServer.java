@@ -4,7 +4,8 @@ import java.io.*;
 import java.net.InetSocketAddress;
 import java.lang.*;
 
-import com.indentationerror.dds.database.DatabaseInstance;
+import com.indentationerror.dds.database.GraphDatabase;
+import com.indentationerror.dds.database.GraphDatabaseBacking;
 import com.sun.net.httpserver.HttpsServer;
 
 import java.nio.charset.Charset;
@@ -34,7 +35,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsExchange;
 
 public class APIServer {
-    private DatabaseInstance databaseInstance;
+    private GraphDatabase graphDatabase;
     private static String DEFAULT_ROOT_SITE = "<!DOCTYPE html><html><head><title>Welcome to DDS!</title><style>body {width: 35em; margin: 0 auto; font-family: Tahoma, Verdana, Arial, sans-serif;}</style></head><body><h1>Welcome to DDS!</h1><p>If you see this page, the DDS REST API server is successfully installed and working. Further configuration is required.</p><p>For online documentation and support please refer to <a href=\"https://dds.indentationerror.com/\">dds.indentationerror.com</a></p><p><em>Thank you for using DDS.</em></p></body></html>";
     public static class RootHandler implements HttpHandler {
         @Override
@@ -63,8 +64,8 @@ public class APIServer {
         return (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
     }
 
-    public APIServer(DatabaseInstance databaseInstance) {
-        this.databaseInstance = databaseInstance;
+    public APIServer(GraphDatabase graphDatabase) {
+        this.graphDatabase = graphDatabase;
     }
     public void start(int port) throws Exception {
         try {
@@ -83,9 +84,9 @@ public class APIServer {
 
             ks.setKeyEntry(
                     "serverCert",
-                    APIServer.readPrivateKey(new File(this.databaseInstance.getConfig().getJSONObject("ssl_certs").getString("private_key"))),
+                    APIServer.readPrivateKey(new File(this.graphDatabase.getConfig().getJSONObject("ssl_certs").getString("private_key"))),
                     randomPassword,
-                    cf.generateCertificates(new FileInputStream(this.databaseInstance.getConfig().getJSONObject("ssl_certs").getString("full_chain"))).toArray(new Certificate[0])
+                    cf.generateCertificates(new FileInputStream(this.graphDatabase.getConfig().getJSONObject("ssl_certs").getString("full_chain"))).toArray(new Certificate[0])
             );
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             tmf.init(ks);
@@ -117,7 +118,7 @@ public class APIServer {
                 }
             });
             httpsServer.createContext("/", new RootHandler());
-            httpsServer.createContext("/api/v1", new APIHandlerV1(this.databaseInstance));
+            httpsServer.createContext("/api/v1", new APIHandlerV1(this.graphDatabase));
             httpsServer.setExecutor(new ThreadPoolExecutor(4, 8, 30, TimeUnit.SECONDS, new ArrayBlockingQueue<Runnable>(100)));
             httpsServer.start();
             System.out.println("API server online on port " + port + " of localhost");

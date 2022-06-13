@@ -1,5 +1,9 @@
 package com.indentationerror.dds.database;
 
+import com.indentationerror.dds.exceptions.DuplicateNodeStoreException;
+import com.indentationerror.dds.exceptions.MissingNodeException;
+
+import java.text.ParseException;
 import java.util.Date;
 
 public abstract class JournalEntry {
@@ -15,4 +19,6 @@ public abstract class JournalEntry {
     public Date getTimestamp() {
         return timestamp;
     }
+
+    public void replayOn(GraphDatabase graphDatabase) throws MissingNodeException, DuplicateNodeStoreException, ParseException {}
 }

@@ -3,10 +3,7 @@ package com.indentationerror.dds.database;
 import com.indentationerror.dds.exceptions.DuplicatePropertyException;
 import com.indentationerror.dds.formats.WUUID;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.UUID;
+import java.util.*;
 
 public class Node {
     private UUID localId;
@@ -79,7 +76,7 @@ public class Node {
         return this.oCNode;
     }
 
-    public String getData() {
+    public String getDataUnsafe() {
         return this.data;
     }
 
@@ -87,17 +84,17 @@ public class Node {
         return this.schema;
     }
 
-    public HashMap<String, Node> getProperties() {
+    public HashMap<String, Node> getPropertiesUnsafe() {
         return this.properties;
     }
 
-    public void removeProperty(String name) {
+    public void removePropertyUnsafe(String name) {
         if (this.properties.containsKey(name)) {
             this.properties.get(name).references.get(name).remove(this); // Make sure to remove the reverse lookup
             this.properties.remove(name); // Then remove the property
         }
     }
-    public void addProperty(String name, Node node) throws DuplicatePropertyException {
+    public void addPropertyUnsafe(String name, Node node) throws DuplicatePropertyException {
         if (this.properties.containsKey(name)) {
             throw new DuplicatePropertyException();
         } else {
@@ -109,7 +106,7 @@ public class Node {
         }
     }
 
-    public Node getProperty(String name) {
+    public Node getPropertyUnsafe(String name) {
         if (this.properties.containsKey(name)) {
             return this.properties.get(name);
         } else {
@@ -124,6 +121,43 @@ public class Node {
         if (this.references.containsKey(name)) {
             Node[] nodes = this.references.get(name).toArray(new Node[0]);
             return (nodes.length == 0) ? null : nodes; // Don't return an empty array, just return null
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Node)) return false;
+        Node node = (Node) o;
+        return Objects.equals(globalId, node.globalId);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(globalId);
+    }
+
+    public HashMap<String, Node> getProperties(SecurityContext securityContext) {
+        if (Arrays.asList(securityContext.getDatabase().getPermsOnNode(securityContext.getActor(), this)).contains(AuthorizedAction.READ)) {
+            return this.getPropertiesUnsafe();
+        } else {
+            return new HashMap<>();
+        }
+    }
+
+    public Node getProperty(SecurityContext securityContext, String key) {
+        if (Arrays.asList(securityContext.getDatabase().getPermsOnNode(securityContext.getActor(), this)).contains(AuthorizedAction.READ)) {
+            return this.getPropertyUnsafe(key);
+        } else {
+            return null;
+        }
+    }
+
+    public String getData(SecurityContext securityContext) {
+        if (Arrays.asList(securityContext.getDatabase().getPermsOnNode(securityContext.getActor(), this)).contains(AuthorizedAction.READ)) {
+            return this.getDataUnsafe();
         } else {
             return null;
         }

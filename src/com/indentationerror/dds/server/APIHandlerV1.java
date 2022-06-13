@@ -17,20 +17,20 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class APIHandlerV1 implements HttpHandler {
-    private DatabaseInstance databaseInstance;
+    private GraphDatabase graphDatabase;
 
-    public APIHandlerV1(DatabaseInstance databaseInstance) {
-        this.databaseInstance = databaseInstance;
+    public APIHandlerV1(GraphDatabase graphDatabase) {
+        this.graphDatabase = graphDatabase;
     }
 
-    private JSONObject nodeToJson(Node node) {
+    private JSONObject nodeToJson(SecurityContext securityContext,Node node) {
         TimeZone tz = TimeZone.getTimeZone("UTC");
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
         df.setTimeZone(tz);
 
         JSONObject response = new JSONObject();
         response.put("@id", node.getId());
-        if (!node.getGlobalId().getInstanceId().equals(this.databaseInstance.getInstanceId())) {
+        if (!node.getGlobalId().getInstanceId().equals(this.graphDatabase.getInstanceId())) {
             response.put("@global_id", node.getGlobalId());
         }
         response.put("@created", df.format(node.getCTime()));
@@ -43,10 +43,10 @@ public class APIHandlerV1 implements HttpHandler {
         if (node.getCNode() != null) {
             response.put("@creator", node.getCNode().getId());
         }
-        response.put("@data", node.getData());
+        response.put("@data", node.getData(securityContext));
         response.put("@schema", node.getSchema());
-        for (String key : node.getProperties().keySet()) {
-            response.put(key, node.getProperty(key).getId());
+        for (String key : node.getProperties(securityContext).keySet()) {
+            response.put(key, node.getProperty(securityContext, key).getId());
         }
 
         return response;
@@ -69,7 +69,24 @@ public class APIHandlerV1 implements HttpHandler {
         df.setTimeZone(tz);
 
         try {
-            Node userNode = this.databaseInstance.getNode(this.databaseInstance.getInstanceId()); // Do everything from the root node for now
+            String authMethod = httpsExchange.getRequestHeaders().getFirst("Authorization");
+            String loginNodeId = httpsExchange.getRequestHeaders().getFirst("X-Auxilium-Actor");
+            Node userNode = this.graphDatabase.getNode(UUID.fromString(loginNodeId)); // Do everything from the root node for now
+            SecurityContext securityContext = null;
+
+            if (authMethod != null && authMethod.startsWith("Bearer ")) {
+                String token = authMethod.substring("Bearer ".length());
+                for (AuthenticationMethod validAuth : this.graphDatabase.getAuthMethods(userNode)) {
+                    if (validAuth.validate(token)) {
+                        securityContext = new SecurityContext(this.graphDatabase, userNode);
+                    }
+                }
+            }
+
+            if (securityContext == null) {
+                throw new RuntimeException("Authentication failure");
+            }
+
             Node headNode = userNode;
             Node tailNode = headNode;
             boolean outputTailNode = false;
@@ -91,7 +108,7 @@ public class APIHandlerV1 implements HttpHandler {
                         case "@resolve_path":
                             bodyContent = URLDecoder.decode(bodyContent.trim(), Charset.defaultCharset()).trim();
                             //System.out.println("pth: " + bodyContent);
-                            tailNode = new RelativeNodePath(bodyContent).toAbsolute(new NodePathContext(userNode, userNode)).getNodeFrom(databaseInstance);
+                            tailNode = new RelativeNodePath(bodyContent).toAbsolute(new NodePathContext(userNode, userNode)).getNodeFrom(graphDatabase);
                             outputTailNode = true;
                             break;
                         case "@auth":
@@ -110,10 +127,10 @@ public class APIHandlerV1 implements HttpHandler {
                             Query query = new Query(queryText, userNode);
                             switch (query.getQueryType()) {
                                 case GRANT:
-                                    query.runGrantQuery(this.databaseInstance);
+                                    query.runGrantQuery(this.graphDatabase);
                                     break;
                                 case SELECT:
-                                    List<Map<String, Node[]>> results = query.runSelectQuery(this.databaseInstance);
+                                    List<Map<String, Node[]>> results = query.runSelectQuery(this.graphDatabase);
                                     JSONArray outputArray = new JSONArray();
                                     for (Map<String, Node[]> result : results) {
                                         JSONObject outNode = new JSONObject();
@@ -121,7 +138,7 @@ public class APIHandlerV1 implements HttpHandler {
                                             JSONArray nodeList = new JSONArray();
                                             for (Node node : result.get(key)) {
                                                 if (node != null) {
-                                                    nodeList.put(nodeToJson(node));
+                                                    nodeList.put(nodeToJson(securityContext, node));
                                                 }
                                             }
                                             outNode.put(key, nodeList);
@@ -133,11 +150,17 @@ public class APIHandlerV1 implements HttpHandler {
                             }
                             break;
                         case "@new":
-                            Node newNode = this.databaseInstance.newNode(bodyContent.trim(), userNode, null);
+                            JSONObject bodyJSONObject = new JSONObject(bodyContent);
+                            Node newNode = this.graphDatabase.newNode(
+                                bodyJSONObject.has("@data") ? (bodyJSONObject.isNull("@data") ? null : bodyJSONObject.getString("@data")) : null,
+                                userNode,
+                                bodyJSONObject.has("@schema") ? (bodyJSONObject.isNull("@schema") ? null : bodyJSONObject.getString("@schema")) : null
+                            );
+                            System.out.println(newNode.getCNode().getId());
                             response.put("@id", newNode.getId());
                             break;
                         case "@server_info":
-                            response.put("@instance_id", this.databaseInstance.getInstanceId().toString());
+                            response.put("@instance_id", this.graphDatabase.getInstanceId().toString());
                             break;
                         default:
                             response.put("@error", "EndpointNotFound");
@@ -157,7 +180,7 @@ public class APIHandlerV1 implements HttpHandler {
                             break;
                     }
                     String[] reconstruct = Arrays.copyOfRange(requestPath, 0, range);
-                    tailNode = new RelativeNodePath(String.join("/", reconstruct)).toAbsolute(new NodePathContext(userNode, userNode)).getNodeFrom(databaseInstance);
+                    tailNode = new RelativeNodePath(String.join("/", reconstruct)).toAbsolute(new NodePathContext(userNode, userNode)).getNodeFrom(this.graphDatabase);
                     //System.out.println(String.join("/", reconstruct));
                     //response.put("@request_path", String.join("/", reconstruct));
                 }
@@ -170,7 +193,7 @@ public class APIHandlerV1 implements HttpHandler {
                     responseCode = 404;
                     response.put("@error", "NodeNotFound");
                 } else {
-                    response = nodeToJson(tailNode);
+                    response = nodeToJson(securityContext, tailNode);
                 }
             }
         } catch (Exception e) {

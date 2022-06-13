@@ -8,15 +8,18 @@ public class AbsoluteNodePath {
 
     String[] pathComponents;
     public AbsoluteNodePath(String path) {
+        if (path.endsWith("/")) {
+            path = path.substring(0, path.length() - 1);
+        }
         this.pathComponents = path.split("/");
     }
 
     /**
      * Returns the node the path refers to. If the path has a * selector, it will return null.
-     * @param databaseInstance
+     * @param graphDatabase
      * @return The node if path is exact, else null
      */
-    public Node getNodeFrom(DatabaseInstance databaseInstance) {
+    public Node getNodeFrom(GraphDatabase graphDatabase) {
         Node tailNode = null;
         int i = 0;
         int pathTraversalLength = pathComponents.length;
@@ -26,7 +29,7 @@ public class AbsoluteNodePath {
             Matcher matcher = pattern.matcher(pathComponents[0]);
             if (matcher.find()) {
                 String uuid = matcher.group();
-                tailNode = databaseInstance.getNode(UUID.fromString(uuid));
+                tailNode = graphDatabase.getNode(UUID.fromString(uuid));
             } else {
                 tailNode = null;
             }
@@ -35,7 +38,7 @@ public class AbsoluteNodePath {
             while (i < pathTraversalLength) {
                 if (pathComponents[i].length() > 0) {
                     if (tailNode != null) {
-                        tailNode = tailNode.getProperty(pathComponents[i]);
+                        tailNode = tailNode.getPropertyUnsafe(pathComponents[i]);
                     }
                 }
                 i++;

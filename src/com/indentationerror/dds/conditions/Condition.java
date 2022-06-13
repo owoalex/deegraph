@@ -1,18 +1,18 @@
 package com.indentationerror.dds.conditions;
 
-import com.indentationerror.dds.database.DatabaseInstance;
+import com.indentationerror.dds.database.GraphDatabase;
 import com.indentationerror.dds.database.NodePathContext;
 
 import java.util.LinkedList;
 import java.util.Locale;
 
 public abstract class Condition {
-    protected DatabaseInstance databaseInstance;
-    protected Condition(DatabaseInstance databaseInstance) {
-        this.databaseInstance = databaseInstance;
+    protected GraphDatabase graphDatabase;
+    protected Condition(GraphDatabase graphDatabase) {
+        this.graphDatabase = graphDatabase;
     }
 
-    public static Condition fromComponents(DatabaseInstance databaseInstance, LinkedList<String> components) {
+    public static Condition fromComponents(GraphDatabase graphDatabase, LinkedList<String> components) {
         Condition returnCondition = null;
 
         /*System.out.print("CND [ ");
@@ -22,7 +22,7 @@ public abstract class Condition {
         System.out.println("]");*/
 
         if (components.size() == 1) {
-            return new LiteralCondition(databaseInstance, components.peek());
+            return new RawValue(graphDatabase, components.peek());
         }
 
         Condition leftCondition = null;
@@ -66,11 +66,11 @@ public abstract class Condition {
                         }
                     }
                 }
-                returnCondition = Condition.fromComponents(databaseInstance, sideComponents);
+                returnCondition = Condition.fromComponents(graphDatabase, sideComponents);
                 sideComponents = new LinkedList<>();
                 sideComponents.add(components.poll()); // Load the next element
             } else {
-                returnCondition = Condition.fromComponents(databaseInstance, sideComponents);
+                returnCondition = Condition.fromComponents(graphDatabase, sideComponents);
                 sideComponents = new LinkedList<>();
                 sideComponents.add(components.poll()); // Load the next element
             }
@@ -78,11 +78,11 @@ public abstract class Condition {
             if (operator != null) {
                 switch (operator) {
                     case "==":
-                        returnCondition = new EqualityCondition(databaseInstance, leftCondition, returnCondition);
+                        returnCondition = new EqualityCondition(graphDatabase, leftCondition, returnCondition);
                         operator = null;
                         break;
                     case "!=":
-                        returnCondition = new LogicalNotCondition(databaseInstance, new EqualityCondition(databaseInstance, leftCondition, returnCondition));
+                        returnCondition = new LogicalNotCondition(graphDatabase, new EqualityCondition(graphDatabase, leftCondition, returnCondition));
                         operator = null;
                         break;
                 }
@@ -122,21 +122,21 @@ public abstract class Condition {
                         if (operator != null) {
                             switch (operator) {
                                 case "&&":
-                                    returnCondition = new LogicalAndCondition(databaseInstance, leftCondition, returnCondition);
+                                    returnCondition = new LogicalAndCondition(graphDatabase, leftCondition, returnCondition);
                                     operator = null;
                                     break;
                                 case "||":
-                                    returnCondition = new LogicalOrCondition(databaseInstance, leftCondition, returnCondition);
+                                    returnCondition = new LogicalOrCondition(graphDatabase, leftCondition, returnCondition);
                                     operator = null;
                                     break;
                                 case "^|":
-                                    returnCondition = new LogicalXorCondition(databaseInstance, leftCondition, returnCondition);
+                                    returnCondition = new LogicalXorCondition(graphDatabase, leftCondition, returnCondition);
                                     operator = null;
                                     break;
                             }
                         }
                         sideComponents.removeLast(); // Get rid of the operator from the components
-                        returnCondition = invertSide ? new LogicalNotCondition(databaseInstance, returnCondition) : returnCondition; // Since this is a logical operater, apply any negation now
+                        returnCondition = invertSide ? new LogicalNotCondition(graphDatabase, returnCondition) : returnCondition; // Since this is a logical operater, apply any negation now
                         leftCondition = returnCondition;
                         invertSide = false; // Reset the invert flag
                         break;
@@ -169,17 +169,17 @@ public abstract class Condition {
         if (operator != null) {
             switch (operator) {
                 case "&&":
-                    returnCondition = new LogicalAndCondition(databaseInstance, leftCondition, returnCondition);
+                    returnCondition = new LogicalAndCondition(graphDatabase, leftCondition, returnCondition);
                     break;
                 case "||":
-                    returnCondition = new LogicalOrCondition(databaseInstance, leftCondition, returnCondition);
+                    returnCondition = new LogicalOrCondition(graphDatabase, leftCondition, returnCondition);
                     break;
                 case "^|":
-                    returnCondition = new LogicalXorCondition(databaseInstance, leftCondition, returnCondition);
+                    returnCondition = new LogicalXorCondition(graphDatabase, leftCondition, returnCondition);
                     break;
             }
         }
-        return invertSide ? new LogicalNotCondition(databaseInstance, returnCondition) : returnCondition;
+        return invertSide ? new LogicalNotCondition(graphDatabase, returnCondition) : returnCondition;
     }
 
     public boolean eval(NodePathContext context) {

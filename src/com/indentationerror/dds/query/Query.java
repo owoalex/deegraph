@@ -112,7 +112,7 @@ public class Query {
         }
     }
 
-    private Condition parseConditionFromRemaining(DatabaseInstance databaseInstance) {
+    private Condition parseConditionFromRemaining(GraphDatabase graphDatabase) {
         LinkedList<String> conditionElements = new LinkedList<>();
         boolean escape = false;
         String current;
@@ -159,9 +159,9 @@ public class Query {
         if (bracketLevel != 0) { // We should only ever consider the conditions to be over once we're at the same bracket level we started at - this is a syntax error!
             new ParseException("Parse error on WHILE condition", 0);
         }
-        return Condition.fromComponents(databaseInstance, conditionElements);
+        return Condition.fromComponents(graphDatabase, conditionElements);
     }
-    public void runGrantQuery(DatabaseInstance databaseInstance) throws ParseException, NoSuchMethodException {
+    public void runGrantQuery(GraphDatabase graphDatabase) throws ParseException, NoSuchMethodException {
         if (this.queryType != QueryType.GRANT) {
             throw new NoSuchMethodException();
         }
@@ -194,16 +194,16 @@ public class Query {
             current = parsedQuery.poll();
             escape = !(current.trim().equals(","));
         }
-        NodePath object = null;
+        NodePath onObject = null;
         Condition condition = null;
         escape = false;
         while (!escape) {
             switch (current.toUpperCase(Locale.ROOT)) {
                 case "ON":
-                    object = new RelativeNodePath(parsedQuery.poll());
+                    onObject = new RelativeNodePath(parsedQuery.poll());
                     break;
                 case "WHERE":
-                    condition = parseConditionFromRemaining(databaseInstance);
+                    condition = parseConditionFromRemaining(graphDatabase);
                     break;
                 default:
                     throw new ParseException("'" + current + "' is not a valid control word", 0);
@@ -213,10 +213,13 @@ public class Query {
                 escape = true;
             }
         }
+
+        AuthorizationRule rule = new AuthorizationRule(condition, actions.toArray(new AuthorizedAction[0]));
+
         //condition.eval(new NodePathContext(this.actor, object));
     }
 
-    public List<Map<String, Node[]>> runSelectQuery(DatabaseInstance databaseInstance) throws ParseException, NoSuchMethodException {
+    public List<Map<String, Node[]>> runSelectQuery(GraphDatabase graphDatabase) throws ParseException, NoSuchMethodException {
         if (this.queryType != QueryType.SELECT) {
             throw new NoSuchMethodException();
         }
@@ -235,7 +238,7 @@ public class Query {
         }
         Condition condition = null;
         String schemaLimit = null;
-        ArrayList<Node> candidateNodes = new ArrayList<>(Arrays.asList(databaseInstance.getAllNodes()));
+        ArrayList<Node> candidateNodes = new ArrayList<>(Arrays.asList(graphDatabase.getAllNodes()));
         escape = (current == null);
         while (!escape) {
             switch (current.toUpperCase(Locale.ROOT)) {
@@ -243,7 +246,7 @@ public class Query {
                     String fromStrPath = parsedQuery.poll();
                     RelativeNodePath fromRelPath = new RelativeNodePath(fromStrPath);
                     if (fromRelPath != null) {
-                        candidateNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new NodePathContext(actor, null), databaseInstance.getAllNodes())));
+                        candidateNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new NodePathContext(actor, null), graphDatabase.getAllNodes())));
                     } else {
                         throw new RuntimeException("Error parsing '" + fromStrPath + "' as path") ;
                     }
@@ -252,7 +255,7 @@ public class Query {
                     schemaLimit = parsedQuery.poll();
                     break;
                 case "WHERE":
-                    condition = parseConditionFromRemaining(databaseInstance);
+                    condition = parseConditionFromRemaining(graphDatabase);
                     break;
                 default:
                     throw new ParseException("'" + current + "' is not a valid control word", 0);
@@ -263,7 +266,20 @@ public class Query {
             }
         }
 
-        if (condition != null) {
+        if (schemaLimit != null) { // Filter by INSTANCEOF first, as it's quite a cheap operation
+            if (schemaLimit.startsWith("\"") && schemaLimit.endsWith("\"")) {
+                schemaLimit = schemaLimit.substring(1, schemaLimit.length() - 1);
+            }
+            ArrayList<Node> newCandidates = new ArrayList<>();
+            for (Node candidate : candidateNodes) {
+                if (schemaLimit.equals(candidate.getSchema())) {
+                    newCandidates.add(candidate);
+                }
+            }
+            candidateNodes = newCandidates;
+        }
+
+        if (condition != null) { // Filter based on condition after, this is potentially a very expensive operation
             ArrayList<Node> newCandidates = new ArrayList<>();
             for (Node candidate : candidateNodes) {
                 if (condition.eval(new NodePathContext(this.actor, candidate))) {
@@ -274,17 +290,10 @@ public class Query {
         }
 
         ArrayList<Map<String, Node[]>> outputMaps = new ArrayList<>();
-        for (Node candidate : candidateNodes) {
+        for (Node candidate : candidateNodes) { // Expand the output to provide every node
             HashMap<String, Node[]> resultRepresentation = new HashMap<>();
             for (String property : requestedProperties) {
-                //AbsoluteNodePath absoluteNodePath = new RelativeNodePath(property).toAbsolute(new NodePathContext(actor, candidate));
-                //if (absoluteNodePath == null) {
-                //    nodeRepresentation.put(property, null);
-                //} else {
-                //    Node propNode = absoluteNodePath.getNodeFrom(databaseInstance);
-                //    nodeRepresentation.put(property, propNode);
-                //}
-                Node[] matches = new RelativeNodePath(property).getMatchingNodes(new NodePathContext(actor, candidate), databaseInstance.getAllNodes());
+                Node[] matches = new RelativeNodePath(property).getMatchingNodes(new NodePathContext(actor, candidate), graphDatabase.getAllNodes());
                 resultRepresentation.put(property, matches);
             }
             outputMaps.add(resultRepresentation);
@@ -296,14 +305,14 @@ public class Query {
         return queryType;
     }
 
-    public void runOn(DatabaseInstance databaseInstance) throws ParseException {
+    public void runOn(GraphDatabase graphDatabase) throws ParseException {
         try {
             switch (queryType) {
                 case GRANT:
-                    runGrantQuery(databaseInstance);
+                    runGrantQuery(graphDatabase);
                     break;
                 case SELECT:
-                    runSelectQuery(databaseInstance);
+                    runSelectQuery(graphDatabase);
                     break;
             }
         } catch (NoSuchMethodException e) {

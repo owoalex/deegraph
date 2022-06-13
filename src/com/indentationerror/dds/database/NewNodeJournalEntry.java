@@ -26,7 +26,7 @@ public class NewNodeJournalEntry extends JournalEntry {
             this.cNode = node.getCNode().getId();
         }
         this.oCNode = node.getOCNodeId();
-        this.data = node.getData();
+        this.data = node.getDataUnsafe();
         this.schema = node.getSchema();
         this.oCTime = node.getOCTime();
     }
@@ -42,15 +42,16 @@ public class NewNodeJournalEntry extends JournalEntry {
         this.oCTime = oCTime;
     }
 
-    public void replayOn(DatabaseInstance databaseInstance) throws DuplicateNodeStoreException {
-        if (databaseInstance.getNode(this.globalId) != null) { // We already have this exact node in the database!
-            throw new DuplicateNodeStoreException(databaseInstance.getNode(this.globalId));
+    @Override
+    public void replayOn(GraphDatabase graphDatabase) throws DuplicateNodeStoreException {
+        if (graphDatabase.getNode(this.globalId) != null) { // We already have this exact node in the database!
+            throw new DuplicateNodeStoreException(graphDatabase.getNode(this.globalId));
         }
-        while (databaseInstance.getNode(this.localId) != null) { // Hmmm, UUID collision, but not the same origin. This can happen for a few reasons - let's just randomize the last bit to get a new UUID for local purposed
+        while (graphDatabase.getNode(this.localId) != null) { // Hmmm, UUID collision, but not the same origin. This can happen for a few reasons - let's just randomize the last bit to get a new UUID for local purposed
             this.localId = new UUID(this.localId.getMostSignificantBits(), new SecureRandom().nextLong());
         }
-        Node node = new Node(this.localId, this.globalId, databaseInstance.getNode(this.cNode), this.oCNode, this.data, this.schema, this.timestamp, this.oCTime);
-        databaseInstance.registerNode(node);
+        Node node = new Node(this.localId, this.globalId, graphDatabase.getNode(this.cNode), this.oCNode, this.data, this.schema, this.timestamp, this.oCTime);
+        graphDatabase.getBacking().registerNode(node);
     }
 
     public UUID getId() {

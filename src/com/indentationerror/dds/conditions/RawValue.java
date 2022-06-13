@@ -1,13 +1,13 @@
 package com.indentationerror.dds.conditions;
 
-import com.indentationerror.dds.database.DatabaseInstance;
+import com.indentationerror.dds.database.GraphDatabase;
 import com.indentationerror.dds.database.NodePathContext;
 
-public class LiteralCondition extends Condition {
+public class RawValue extends Condition {
     private String literal;
 
-    public LiteralCondition(DatabaseInstance databaseInstance, String literal) {
-        super(databaseInstance);
+    public RawValue(GraphDatabase graphDatabase, String literal) {
+        super(graphDatabase);
         this.literal = literal;
     }
 

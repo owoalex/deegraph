@@ -1,2 +1,3 @@
 # distributed-directory-server
-Distributed Directory Server
+
+See the documentation in docs/ for information on the [Query Language](docs/query.md) or [REST API](docs/api.md)

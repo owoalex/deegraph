@@ -1,14 +1,15 @@
 package com.indentationerror.dds.conditions;
 
-import com.indentationerror.dds.database.DatabaseInstance;
+import com.indentationerror.dds.database.GraphDatabase;
+import com.indentationerror.dds.database.GraphDatabaseBacking;
 import com.indentationerror.dds.database.NodePathContext;
 
 public class LogicalAndCondition extends LogicalCondition {
     private Condition condition1;
     private Condition condition2;
 
-    public LogicalAndCondition(DatabaseInstance databaseInstance, Condition condition1, Condition condition2) {
-        super(databaseInstance);
+    public LogicalAndCondition(GraphDatabase graphDatabase, Condition condition1, Condition condition2) {
+        super(graphDatabase);
         this.condition1 = condition1;
         this.condition2 = condition2;
     }
