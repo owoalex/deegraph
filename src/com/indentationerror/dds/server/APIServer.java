@@ -111,7 +111,6 @@ public class APIServer {
                         // Set the SSL parameters
                         SSLParameters sslParameters = context.getSupportedSSLParameters();
                         params.setSSLParameters(sslParameters);
-                        System.out.println("New SSL connection");
                     } catch (Exception ex) {
                         System.err.println("Failed to create HTTPS port");
                     }

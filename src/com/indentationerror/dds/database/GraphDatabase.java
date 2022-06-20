@@ -31,6 +31,7 @@ public class GraphDatabase {
         this.relevantRule.put("*", new ArrayList<>());
         String instanceNodePath = "{" + graphDatabaseBacking.getInstanceId().toString() + "}";
         this.relevantRule.put(instanceNodePath, new ArrayList<>());
+
         // Default rule whereby the root node can access everything
         this.relevantRule.get(instanceNodePath).add(new AuthorizationRule(new EqualityCondition(this, new RawValue(this, instanceNodePath), new RawValue(this, "/@id")), new AuthorizedAction[] {AuthorizedAction.GRANT, AuthorizedAction.DELEGATE, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.WRITE}));
 
