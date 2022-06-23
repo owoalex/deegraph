@@ -35,7 +35,12 @@ public class GraphDatabase {
         // Default rule whereby the root node can access everything
         this.relevantRule.get(instanceNodePath).add(new AuthorizationRule(new EqualityCondition(this, new RawValue(this, instanceNodePath), new RawValue(this, "/@id")), new AuthorizedAction[] {AuthorizedAction.GRANT, AuthorizedAction.DELEGATE, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.WRITE}));
 
+        // Default rule whereby the creator of a node has full perms on the node
         this.relevantRule.get("*").add(new AuthorizationRule(new EqualityCondition(this, new RawValue(this, "@creator_id"), new RawValue(this, "/@id")), new AuthorizedAction[] {AuthorizedAction.GRANT, AuthorizedAction.DELEGATE, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.WRITE}));
+
+        // Default rule whereby a node has full perms on itself
+        this.relevantRule.get("*").add(new AuthorizationRule(new EqualityCondition(this, new RawValue(this, "@id"), new RawValue(this, "/@id")), new AuthorizedAction[] {AuthorizedAction.GRANT, AuthorizedAction.DELEGATE, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.WRITE}));
+
 
         if (this.graphDatabaseBacking.getConfig().has("root_auth_tokens")) {
             if (!this.authenticationMethods.containsKey(this.graphDatabaseBacking.getInstanceId())) {
@@ -59,9 +64,9 @@ public class GraphDatabase {
         this(new GraphDatabaseBacking(configFilePath));
     }
 
-    private void registerRule(AuthorizationRule rule) {
+    public void registerRule(AuthorizationRule rule, String match) {
         authorizationRules.add(rule);
-        relevantRule.get("*").add(rule);
+        relevantRule.get(match).add(rule);
     }
 
     public AuthorizedAction[] getPermsOnNode(Node actor, Node object) {

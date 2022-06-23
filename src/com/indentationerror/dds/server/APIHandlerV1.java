@@ -2,6 +2,7 @@ package com.indentationerror.dds.server;
 
 import com.indentationerror.dds.database.*;
 import com.indentationerror.dds.query.Query;
+import com.indentationerror.dds.query.QueryException;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -23,33 +24,36 @@ public class APIHandlerV1 implements HttpHandler {
         this.graphDatabase = graphDatabase;
     }
 
-    private JSONObject nodeToJson(SecurityContext securityContext,Node node) {
+    private JSONObject nodeToJson(SecurityContext securityContext, Node node) {
         TimeZone tz = TimeZone.getTimeZone("UTC");
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
         df.setTimeZone(tz);
 
         JSONObject response = new JSONObject();
-        response.put("@id", node.getId());
-        if (!node.getGlobalId().getInstanceId().equals(this.graphDatabase.getInstanceId())) {
-            response.put("@global_id", node.getGlobalId());
+        if (Arrays.asList(securityContext.getDatabase().getPermsOnNode(securityContext.getActor(), node)).contains(AuthorizedAction.READ)) {
+            response.put("@id", node.getId());
+            if (!node.getGlobalId().getInstanceId().equals(this.graphDatabase.getInstanceId())) {
+                response.put("@global_id", node.getGlobalId());
+            }
+            response.put("@created", df.format(node.getCTime()));
+            if (!node.getCTime().equals(node.getOCTime())) {
+                response.put("@originally_created", df.format(node.getOCTime()));
+            }
+            if (node.getCNode() == null) {
+                response.put("@original_creator", node.getOCNodeId());
+            }
+            if (node.getCNode() != null) {
+                response.put("@creator", node.getCNode().getId());
+            }
+            response.put("@data", node.getData(securityContext));
+            response.put("@schema", node.getSchema());
+            for (String key : node.getProperties(securityContext).keySet()) {
+                response.put(key, node.getProperty(securityContext, key).getId());
+            }
+            return response;
+        } else {
+            return null;
         }
-        response.put("@created", df.format(node.getCTime()));
-        if (!node.getCTime().equals(node.getOCTime())) {
-            response.put("@originally_created", df.format(node.getOCTime()));
-        }
-        if (node.getCNode() == null) {
-            response.put("@original_creator", node.getOCNodeId());
-        }
-        if (node.getCNode() != null) {
-            response.put("@creator", node.getCNode().getId());
-        }
-        response.put("@data", node.getData(securityContext));
-        response.put("@schema", node.getSchema());
-        for (String key : node.getProperties(securityContext).keySet()) {
-            response.put(key, node.getProperty(securityContext, key).getId());
-        }
-
-        return response;
     }
     @Override
     public void handle(HttpExchange t) throws IOException {
@@ -115,38 +119,82 @@ public class APIHandlerV1 implements HttpHandler {
                             response.put("@token", requestPath[1]);
                             break;
                         case "@query":
-                            String queryText = "";
-
-                            if (t.getRequestMethod().toUpperCase(Locale.ROOT).equals("POST")) {
-                                queryText = bodyContent;
-                            } else {
-                                String[] reconstruct = Arrays.copyOfRange(requestPath, 1, requestPath.length);
-                                queryText = String.join("/", reconstruct);
+                            if (userNode == null) {
+                                break;
                             }
+                            try {
+                                String queryText = "";
 
-                            Query query = new Query(queryText, userNode);
-                            switch (query.getQueryType()) {
-                                case GRANT:
-                                    query.runGrantQuery(this.graphDatabase);
-                                    break;
-                                case SELECT:
-                                    List<Map<String, Node[]>> results = query.runSelectQuery(this.graphDatabase);
-                                    JSONArray outputArray = new JSONArray();
-                                    for (Map<String, Node[]> result : results) {
-                                        JSONObject outNode = new JSONObject();
-                                        for (String key : result.keySet()) {
-                                            JSONArray nodeList = new JSONArray();
-                                            for (Node node : result.get(key)) {
-                                                if (node != null) {
-                                                    nodeList.put(nodeToJson(securityContext, node));
+                                if (t.getRequestMethod().toUpperCase(Locale.ROOT).equals("POST")) {
+                                    queryText = bodyContent;
+                                } else {
+                                    String[] reconstruct = Arrays.copyOfRange(requestPath, 1, requestPath.length);
+                                    queryText = String.join("/", reconstruct);
+                                }
+
+                                Query query = new Query(queryText, userNode);
+                                switch (query.getQueryType()) {
+                                    case GRANT:
+                                        UUID ruleId = query.runGrantQuery(this.graphDatabase);
+                                        if (ruleId == null) {
+                                            response.put("@error", "MissingGrantPermission");
+                                            responseCode = 403;
+                                        } else {
+                                            response.put("@rule_id", ruleId);
+                                        }
+                                        break;
+                                    case SELECT:
+                                        List<Map<String, Node[]>> results = query.runSelectQuery(this.graphDatabase);
+                                        JSONArray outputArray = new JSONArray();
+                                        for (Map<String, Node[]> result : results) {
+                                            JSONObject outNode = new JSONObject();
+                                            for (String key : result.keySet()) {
+                                                boolean atLeastOneValue = false;
+                                                JSONArray nodeList = new JSONArray();
+                                                for (Node node : result.get(key)) {
+                                                    if (node != null) {
+                                                        JSONObject nodeJsonRepr = nodeToJson(securityContext, node);
+                                                        if (nodeJsonRepr != null) {
+                                                            nodeList.put(nodeJsonRepr);
+                                                            atLeastOneValue = true;
+                                                        }
+                                                    }
+                                                }
+                                                if (atLeastOneValue) { // If it's all null, just discard this row, it's not exactly helpful
+                                                    outNode.put(key, nodeList);
                                                 }
                                             }
-                                            outNode.put(key, nodeList);
+                                            if (outNode.keySet().size() != 0) { // It's not very useful to add an empty output
+                                                outputArray.put(outNode);
+                                            }
                                         }
-                                        outputArray.put(outNode);
-                                    }
-                                    response.put("@rows", outputArray);
-                                    break;
+                                        response.put("@rows", outputArray);
+                                        break;
+                                    case LINK:
+                                        if (query.runLinkQuery(this.graphDatabase)) {
+                                            response.put("@response", "OK");
+                                        } else {
+                                            response.put("@error", "FailedToLink");
+                                        }
+                                        break;
+                                    case UNLINK:
+                                        if (query.runUnlinkQuery(this.graphDatabase)) {
+                                            response.put("@response", "OK");
+                                        } else {
+                                            response.put("@error", "FailedToUnlink");
+                                        }
+                                        break;
+                                    case DIRECTORY:
+                                        Map<String, Node> listMap = query.runDirectoryQuery(this.graphDatabase);
+                                        JSONObject nodeList = new JSONObject();
+                                        for (String key : listMap.keySet()) {
+                                            nodeList.put(key, listMap.get(key).getId());
+                                        }
+                                        response.put("@map", nodeList);
+                                        break;
+                                }
+                            } catch (QueryException queryException) {
+                                response.put("@error", queryException.toString());
                             }
                             break;
                         case "@new":

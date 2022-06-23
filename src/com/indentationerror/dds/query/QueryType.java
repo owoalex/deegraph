@@ -2,5 +2,11 @@ package com.indentationerror.dds.query;
 
 public enum QueryType {
     GRANT,
-    SELECT
+    SELECT,
+    LINK,
+    UNLINK,
+    DELETE,
+    INSERT,
+    CONSTRUCT,
+    DIRECTORY
 }

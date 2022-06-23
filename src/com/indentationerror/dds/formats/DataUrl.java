@@ -13,7 +13,9 @@ public class DataUrl {
     String mimeType;
 
     public DataUrl(String url) throws ParseException {
-        if (url.startsWith("data:")) {
+        if (url == null) {
+
+        } else if (url.startsWith("data:")) {
             String header = url.substring(5, url.indexOf(','));
             String dta = url.substring(url.indexOf(',') + 1);
             //System.out.println("HDR: " + header);
@@ -38,6 +40,9 @@ public class DataUrl {
             if (this.stringData == null) {
                 return null;
             } else {
+                if (this.stringData == null) {
+                    return null;
+                }
                 return this.stringData.getBytes(StandardCharsets.UTF_8);
             }
         }

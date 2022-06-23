@@ -2,6 +2,7 @@ package com.indentationerror.dds.query;
 
 import com.indentationerror.dds.conditions.Condition;
 import com.indentationerror.dds.database.*;
+import com.indentationerror.dds.exceptions.DuplicatePropertyException;
 
 import java.text.ParseException;
 import java.util.*;
@@ -11,6 +12,7 @@ public class Query {
     private QueryType queryType;
     private Node actor;
     public Query(String src, Node actor) throws ParseException {
+        this.actor = actor;
         StringBuilder inputWordBuffer = new StringBuilder();
         Stack<Character> inputString = new Stack<>();
         char[] inputArray = src.trim().toCharArray();
@@ -107,6 +109,24 @@ public class Query {
             case "SELECT":
                 this.queryType = QueryType.SELECT;
                 break;
+            case "LINK":
+                this.queryType = QueryType.LINK;
+                break;
+            case "DIRECTORY":
+                this.queryType = QueryType.DIRECTORY;
+                break;
+            case "UNLINK":
+                this.queryType = QueryType.UNLINK;
+                break;
+            case "CONSTRUCT":
+                this.queryType = QueryType.CONSTRUCT;
+                break;
+            case "INSERT":
+                this.queryType = QueryType.INSERT;
+                break;
+            case "DELETE":
+                this.queryType = QueryType.DELETE;
+                break;
             default:
                 throw new ParseException("'" + qtype + "' is not a valid query type", 0);
         }
@@ -161,7 +181,7 @@ public class Query {
         }
         return Condition.fromComponents(graphDatabase, conditionElements);
     }
-    public void runGrantQuery(GraphDatabase graphDatabase) throws ParseException, NoSuchMethodException {
+    public UUID runGrantQuery(GraphDatabase graphDatabase) throws ParseException, NoSuchMethodException {
         if (this.queryType != QueryType.GRANT) {
             throw new NoSuchMethodException();
         }
@@ -194,13 +214,19 @@ public class Query {
             current = parsedQuery.poll();
             escape = !(current.trim().equals(","));
         }
-        NodePath onObject = null;
+        ArrayList<Node> onNodes = null;
         Condition condition = null;
         escape = false;
         while (!escape) {
             switch (current.toUpperCase(Locale.ROOT)) {
                 case "ON":
-                    onObject = new RelativeNodePath(parsedQuery.poll());
+                    String fromStrPath = parsedQuery.poll();
+                    RelativeNodePath fromRelPath = new RelativeNodePath(fromStrPath);
+                    if (fromRelPath != null) {
+                        onNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodes())));
+                    } else {
+                        throw new RuntimeException("Error parsing '" + fromStrPath + "' as path") ;
+                    }
                     break;
                 case "WHERE":
                     condition = parseConditionFromRemaining(graphDatabase);
@@ -215,8 +241,159 @@ public class Query {
         }
 
         AuthorizationRule rule = new AuthorizationRule(condition, actions.toArray(new AuthorizedAction[0]));
+        if (onNodes == null) {
+            List<AuthorizedAction> authorizedActions = Arrays.asList(graphDatabase.getPermsOnNode(this.actor, graphDatabase.getNode(graphDatabase.getInstanceId())));
+            if (authorizedActions.contains(AuthorizedAction.GRANT)) { // Only allow users who have grant perms on the instance (root) node to write global permissions
+                graphDatabase.registerRule(rule, "*");
+            } else {
+                return null; // Discard the rule - we didn't have permission to add it
+            }
+        } else {
+            boolean atLeastOne = false;
+            for (Node cn : onNodes) {
+                List<AuthorizedAction> authorizedActions = Arrays.asList(graphDatabase.getPermsOnNode(this.actor, cn));
+                if (authorizedActions.contains(AuthorizedAction.GRANT)) { // Check for each node to make sure the use rhas permissions
+                    graphDatabase.registerRule(rule, cn.getId().toString());
+                    atLeastOne = true;
+                }
+            }
+            if (!atLeastOne) {
+                return null; // Discard the rule - we didn't have permission to add it
+            }
+        }
+        return rule.getUuid();
 
         //condition.eval(new NodePathContext(this.actor, object));
+    }
+
+    public boolean runLinkQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException {
+        if (this.queryType != QueryType.LINK) {
+            throw new NoSuchMethodException();
+        }
+
+        boolean escape = false;
+        String current = parsedQuery.poll();
+        String linkName = "#"; // Wildcard for inserting at the next available numbered property
+        Node[] valueNodes = new RelativeNodePath(current).getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodes());
+        Node valueNode = (valueNodes.length == 1) ? valueNodes[0] : null;
+        Node toNode = null;
+        current = parsedQuery.poll();
+        while (!escape) {
+            switch (current.toUpperCase(Locale.ROOT)) {
+                case "TO":
+                case "OF":
+                    String fromStrPath = parsedQuery.poll();
+                    RelativeNodePath fromRelPath = new RelativeNodePath(fromStrPath);
+                    if (fromRelPath != null) {
+                        Node[] toNodes = fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodes());
+                        toNode = (toNodes.length == 1) ? toNodes[0] : null;
+                    } else {
+                        throw new RuntimeException("Error parsing '" + fromStrPath + "' as path") ;
+                    }
+                    break;
+                case "AS":
+                    linkName = parsedQuery.poll();
+                    break;
+                default:
+                    throw new QueryException(QueryExceptionCode.INVALID_CONTROL_WORD, "'" + current + "' is not a valid control word");
+            }
+            current = parsedQuery.poll();
+            if (current == null || current.length() == 0) {
+                escape = true;
+            }
+        }
+
+        if (toNode == null) {
+            throw new QueryException(QueryExceptionCode.MISSING_TO_PARAMETER);
+        }
+
+        if (valueNode == null) {
+            throw new QueryException(QueryExceptionCode.MISSING_SUBJECT);
+        }
+
+        toNode.addProperty(new SecurityContext(graphDatabase, this.actor), linkName, valueNode);
+        System.out.println("Attempting link");
+
+        return true;
+    }
+
+    public boolean runUnlinkQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException {
+        if (this.queryType != QueryType.UNLINK) {
+            throw new NoSuchMethodException();
+        }
+
+        boolean escape = false;
+        String current;
+        Node childNode = null;
+        Node parentNode = null;
+        String firstString = parsedQuery.poll();
+        current = parsedQuery.poll();
+        while (!escape) {
+            switch (current.toUpperCase(Locale.ROOT)) {
+                case "FROM":
+                case "OF":
+                    String fromStrPath = parsedQuery.poll();
+                    RelativeNodePath fromRelPath = new RelativeNodePath(fromStrPath);
+                    if (fromRelPath != null) {
+                        Node[] parentNodes = fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodes());
+                        parentNode = (parentNodes.length == 1) ? parentNodes[0] : null;
+                    } else {
+                        throw new RuntimeException("Error parsing '" + fromStrPath + "' as path") ;
+                    }
+                    break;
+                default:
+                    throw new QueryException(QueryExceptionCode.INVALID_CONTROL_WORD, "'" + current + "' is not a valid control word");
+            }
+            current = parsedQuery.poll();
+            if (current == null || current.length() == 0) {
+                escape = true;
+            }
+        }
+
+        if (parentNode == null) {
+            throw new QueryException(QueryExceptionCode.MISSING_TO_PARAMETER);
+        }
+
+        RelativeNodePath fromRelPath = new RelativeNodePath(firstString);
+        if (fromRelPath != null) {
+            Node[] parentNodes = fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, parentNode), graphDatabase.getAllNodes());
+            childNode = (parentNodes.length == 1) ? parentNodes[0] : null;
+        } else {
+            throw new RuntimeException("Error parsing '" + firstString + "' as path") ;
+        }
+        if (childNode == null) {
+            throw new QueryException(QueryExceptionCode.MISSING_SUBJECT);
+        }
+
+        if (parentNode.hasProperty(new SecurityContext(graphDatabase, this.actor), firstString)) {
+            return parentNode.removeProperty(new SecurityContext(graphDatabase, this.actor), firstString);
+        } else {
+            boolean oneFound = false;
+            HashMap<String, Node> props = parentNode.getProperties(new SecurityContext(graphDatabase, this.actor));
+            for (String key : props.keySet()) {
+                if (props.get(key).equals(childNode)) {
+                    parentNode.removeProperty(new SecurityContext(graphDatabase, this.actor), firstString);
+                    oneFound = true;
+                }
+            }
+            return oneFound;
+        }
+    }
+
+    public Map<String, Node> runDirectoryQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException {
+        if (this.queryType != QueryType.DIRECTORY) {
+            throw new NoSuchMethodException();
+        }
+
+        Node[] valueNodes = new RelativeNodePath(parsedQuery.poll()).getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodes());
+        Node valueNode = (valueNodes.length == 1) ? valueNodes[0] : null;
+
+        if (valueNode == null) {
+            throw new QueryException(QueryExceptionCode.MISSING_SUBJECT);
+        }
+
+        //return valueNode.getProperties(new SecurityContext(graphDatabase, this.actor));
+        return valueNode.getPropertiesUnsafe();
     }
 
     public List<Map<String, Node[]>> runSelectQuery(GraphDatabase graphDatabase) throws ParseException, NoSuchMethodException {
@@ -246,7 +423,7 @@ public class Query {
                     String fromStrPath = parsedQuery.poll();
                     RelativeNodePath fromRelPath = new RelativeNodePath(fromStrPath);
                     if (fromRelPath != null) {
-                        candidateNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new NodePathContext(actor, null), graphDatabase.getAllNodes())));
+                        candidateNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodes())));
                     } else {
                         throw new RuntimeException("Error parsing '" + fromStrPath + "' as path") ;
                     }
@@ -293,7 +470,7 @@ public class Query {
         for (Node candidate : candidateNodes) { // Expand the output to provide every node
             HashMap<String, Node[]> resultRepresentation = new HashMap<>();
             for (String property : requestedProperties) {
-                Node[] matches = new RelativeNodePath(property).getMatchingNodes(new NodePathContext(actor, candidate), graphDatabase.getAllNodes());
+                Node[] matches = new RelativeNodePath(property).getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, candidate), graphDatabase.getAllNodes());
                 resultRepresentation.put(property, matches);
             }
             outputMaps.add(resultRepresentation);
@@ -305,7 +482,7 @@ public class Query {
         return queryType;
     }
 
-    public void runOn(GraphDatabase graphDatabase) throws ParseException {
+    public void runOn(GraphDatabase graphDatabase) throws QueryException {
         try {
             switch (queryType) {
                 case GRANT:
@@ -314,9 +491,27 @@ public class Query {
                 case SELECT:
                     runSelectQuery(graphDatabase);
                     break;
+                case LINK:
+                    runLinkQuery(graphDatabase);
+                    break;
+                case DIRECTORY:
+                    runDirectoryQuery(graphDatabase);
+                    break;
+                case UNLINK:
+                    break;
+                case DELETE:
+                    break;
+                case INSERT:
+                    break;
+                case CONSTRUCT:
+                    break;
             }
         } catch (NoSuchMethodException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Unexpected code path taken");
+        } catch (DuplicatePropertyException e) {
+            throw new QueryException(QueryExceptionCode.DUPLICATE_PROPERTY_NAME);
+        } catch (ParseException e) {
+            throw new QueryException(QueryExceptionCode.INVALID_CONTROL_WORD);
         }
     }
 }
