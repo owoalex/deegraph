@@ -1,9 +1,9 @@
 package com.indentationerror.dds.database;
 
-import com.indentationerror.dds.conditions.EqualityCondition;
-import com.indentationerror.dds.conditions.RawValue;
+import com.indentationerror.dds.exceptions.ClosedJournalException;
 import com.indentationerror.dds.exceptions.UnvalidatedJournalSegment;
 import com.indentationerror.dds.formats.WUUID;
+import com.indentationerror.dds.query.Query;
 import com.indentationerror.dds.server.AuthenticationMethod;
 import com.indentationerror.dds.server.SharedSecretAuthentication;
 import org.json.JSONObject;
@@ -24,23 +24,21 @@ public class GraphDatabase {
 
     public GraphDatabase(GraphDatabaseBacking graphDatabaseBacking) throws UnvalidatedJournalSegment, IOException, NoSuchAlgorithmException {
         this.graphDatabaseBacking = graphDatabaseBacking;
-        this.graphDatabaseBacking.init(this);
+
         this.authenticationMethods = new HashMap<>();
         this.authorizationRules = new ArrayList<>();
         this.relevantRule = new HashMap<>();
         this.relevantRule.put("*", new ArrayList<>());
-        String instanceNodePath = "{" + graphDatabaseBacking.getInstanceId().toString() + "}";
-        this.relevantRule.put(instanceNodePath, new ArrayList<>());
 
-        // Default rule whereby the root node can access everything
-        this.relevantRule.get(instanceNodePath).add(new AuthorizationRule(new EqualityCondition(this, new RawValue(this, instanceNodePath), new RawValue(this, "/@id")), new AuthorizedAction[] {AuthorizedAction.GRANT, AuthorizedAction.DELEGATE, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.WRITE}));
+        //String instanceNodePath = "{" + graphDatabaseBacking.getInstanceId().toString() + "}";
 
+        //
         // Default rule whereby the creator of a node has full perms on the node
-        this.relevantRule.get("*").add(new AuthorizationRule(new EqualityCondition(this, new RawValue(this, "@creator_id"), new RawValue(this, "/@id")), new AuthorizedAction[] {AuthorizedAction.GRANT, AuthorizedAction.DELEGATE, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.WRITE}));
-
+        //this.relevantRule.get("*").add(new AuthorizationRule(new EqualityCondition(this, new RawValue(this, "@creator_id"), new RawValue(this, "/@id")), new AuthorizedAction[] {AuthorizedAction.GRANT, AuthorizedAction.DELEGATE, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.WRITE}));
         // Default rule whereby a node has full perms on itself
-        this.relevantRule.get("*").add(new AuthorizationRule(new EqualityCondition(this, new RawValue(this, "@id"), new RawValue(this, "/@id")), new AuthorizedAction[] {AuthorizedAction.GRANT, AuthorizedAction.DELEGATE, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.WRITE}));
+        //this.relevantRule.get("*").add(new AuthorizationRule(new EqualityCondition(this, new RawValue(this, "@id"), new RawValue(this, "/@id")), new AuthorizedAction[] {AuthorizedAction.GRANT, AuthorizedAction.DELEGATE, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.WRITE}));
 
+        this.graphDatabaseBacking.init(this);
 
         if (this.graphDatabaseBacking.getConfig().has("root_auth_tokens")) {
             if (!this.authenticationMethods.containsKey(this.graphDatabaseBacking.getInstanceId())) {
@@ -52,6 +50,10 @@ public class GraphDatabase {
                 }
             }
         }
+    }
+
+    HashMap<String, ArrayList<AuthorizationRule>> getRelevantRule() {
+        return this.relevantRule;
     }
 
     public List<AuthenticationMethod> getAuthMethods(Node node) {
@@ -75,11 +77,11 @@ public class GraphDatabase {
         ArrayList<AuthorizationRule> rules = new ArrayList<>();
 
         rules.addAll(this.relevantRule.get("*"));
-        if (this.relevantRule.containsKey(actor.getId().toString())) {
-            rules.addAll(this.relevantRule.get(actor.getId().toString()));
+        if (this.relevantRule.containsKey("{" + actor.getId().toString() + "}")) {
+            rules.addAll(this.relevantRule.get("{" + actor.getId().toString() + "}"));
         }
-        if (this.relevantRule.containsKey(object.getId().toString())) {
-            rules.addAll(this.relevantRule.get(object.getId().toString()));
+        if (this.relevantRule.containsKey("{" + object.getId().toString() + "}")) {
+            rules.addAll(this.relevantRule.get("{" + object.getId().toString() + "}"));
         }
 
         for (AuthorizationRule rule : rules) {
@@ -87,6 +89,7 @@ public class GraphDatabase {
         }
 
         for (Authorization authorization : authorizations) {
+            //System.out.println(authorization.getAction().toString());
             authorizedActions.addAll(Arrays.asList(authorization.getAction()));
         }
 
@@ -117,6 +120,10 @@ public class GraphDatabase {
 
     public Node newNode(String s, Node userNode, String s1) {
         return this.graphDatabaseBacking.newNode(s, userNode, s1);
+    }
+
+    public void recordQuery(Query query) throws ClosedJournalException {
+        this.graphDatabaseBacking.recordQuery(query);
     }
 
     public Node[] getAllNodes() {

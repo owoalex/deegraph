@@ -1,6 +1,7 @@
 package com.indentationerror.dds.database;
 
-import com.indentationerror.dds.query.Query;
+import com.indentationerror.dds.exceptions.DuplicatePropertyException;
+import com.indentationerror.dds.query.*;
 
 import java.text.ParseException;
 import java.util.ArrayList;
@@ -19,12 +20,35 @@ public class RawQueryJournalEntry extends JournalEntry {
         this.actor = actor;
         this.query = query;
     }
+
+    public UUID getActor() {
+        return actor;
+    }
+
+    public String getQuery() {
+        return query;
+    }
+
     @Override
     public void replayOn(GraphDatabase graphDatabase) throws ParseException {
-        Query q = new Query(this.query, graphDatabase.getNode(this.actor));
+        Query q = Query.fromString(this.query, graphDatabase.getNode(this.actor));
         try {
-            q.runGrantQuery(graphDatabase);
+            switch (q.getQueryType()) {
+                case GRANT:
+                    ((GrantQuery) q).runGrantQuery(graphDatabase);
+                    break;
+                case LINK:
+                    ((LinkQuery) q).runLinkQuery(graphDatabase);
+                    break;
+                case UNLINK:
+                    ((UnlinkQuery) q).runUnlinkQuery(graphDatabase);
+                    break;
+            }
         } catch (NoSuchMethodException e) {
+            throw new RuntimeException(e);
+        } catch (QueryException e) {
+            throw new RuntimeException(e);
+        } catch (DuplicatePropertyException e) {
             throw new RuntimeException(e);
         }
     }

@@ -5,6 +5,7 @@ import com.indentationerror.dds.exceptions.DuplicateNodeStoreException;
 import com.indentationerror.dds.exceptions.MissingNodeException;
 import com.indentationerror.dds.exceptions.UnvalidatedJournalSegment;
 import com.indentationerror.dds.formats.WUUID;
+import com.indentationerror.dds.query.Query;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSObject;
 import com.nimbusds.jose.Payload;
@@ -76,9 +77,9 @@ public class JournalSegment {
         }
     }
 
-    public void registerNewRelation(Node referrer, String referenceName, Node subject) throws ClosedJournalException {
+    public void registerQuery(Query query) throws ClosedJournalException {
         if (this.open) {
-            this.segmentActions.add(new AddRelationJournalEntry(referrer, referenceName, subject));
+            this.segmentActions.add(new RawQueryJournalEntry(query.toString(), query.getActor()));
         } else {
             throw new ClosedJournalException(this);
         }
@@ -136,6 +137,7 @@ public class JournalSegment {
                             if (props.containsKey("entry-type") && props.get("entry-type").size() != 0) {
                                 switch (props.get("entry-type").get(0)) {
                                     case "new-node": {
+                                            System.out.println(new JSONObject(props));
                                             Date creationDate = null;
                                             if (props.containsKey("creation-timestamp") && props.get("creation-timestamp").size() != 0) {
                                                 String creationTimestamp = props.get("creation-timestamp").get(0);
@@ -197,12 +199,33 @@ public class JournalSegment {
                                             this.segmentActions.offer(nodeJournalEntry);
                                         }
                                         break;
+                                    case "query": {
+                                            Date ts = null;
+                                            if (props.containsKey("timestamp") && props.get("timestamp").size() != 0) {
+                                                String creationTimestamp = props.get("timestamp").get(0);
+                                                TemporalAccessor ta = DateTimeFormatter.ISO_INSTANT.parse(creationTimestamp);
+                                                ts = Date.from(Instant.from(ta));
+                                            }
+                                            UUID actorId = null;
+                                            if (props.get("actor-id") != null) {
+                                                actorId = UUID.fromString(props.get("actor-id").get(0));
+                                            }
+                                            String contentStr = null;
+                                            if (content != null) {
+                                                contentStr = String.join("\n", content.toArray(new String[0]));
+                                            }
+
+                                            RawQueryJournalEntry rawQueryJournalEntry = new RawQueryJournalEntry(contentStr, actorId);
+                                            this.segmentActions.offer(rawQueryJournalEntry);
+                                        }
+                                        break;
                                 }
                             }
                         } catch (Exception e) {
                             System.err.println("Critical error processing journal segment " + this.journalUuid);
                             e.printStackTrace();
                         }
+                        props = new HashMap<>(); // Clear the props now so new ones can be added on a blank slate
                         content = null;
                         mode = 0;
                     } else {
@@ -415,6 +438,19 @@ public class JournalSegment {
                 sb.append("Global-Content-ID: "); sb.append(specificEntry.getGlobalId()); sb.append("\r\n");
                 sb.append("Content-ID: "); sb.append(specificEntry.getLocalId()); sb.append("\r\n");
                 sb.append("Archive-Timestamp: "); sb.append(df.format(specificEntry.getTimestamp())); sb.append("\r\n");
+            }
+            if (currentEntry instanceof RawQueryJournalEntry) {
+                RawQueryJournalEntry specificEntry = ((RawQueryJournalEntry) currentEntry);
+                sb.append("Entry-Type: query\r\n");
+                sb.append("Actor-ID: "); sb.append(specificEntry.getActor()); sb.append("\r\n");
+                sb.append("Timestamp: "); sb.append(df.format(specificEntry.getTimestamp())); sb.append("\r\n");
+
+                sb.append("\r\n");
+                String data = specificEntry.getQuery();
+                if (data != null) {
+                    sb.append(data.replaceAll("\r\n", "\n").replaceAll("\n", "\r\n")); // Normalise everything to \r\n
+                    sb.append("\r\n");
+                };
             }
             segments[currentSegment] = sb.toString();
             currentSegment++;

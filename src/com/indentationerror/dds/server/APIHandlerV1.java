@@ -1,8 +1,7 @@
 package com.indentationerror.dds.server;
 
 import com.indentationerror.dds.database.*;
-import com.indentationerror.dds.query.Query;
-import com.indentationerror.dds.query.QueryException;
+import com.indentationerror.dds.query.*;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -132,19 +131,20 @@ public class APIHandlerV1 implements HttpHandler {
                                     queryText = String.join("/", reconstruct);
                                 }
 
-                                Query query = new Query(queryText, userNode);
+                                Query query = Query.fromString(queryText, userNode);
                                 switch (query.getQueryType()) {
                                     case GRANT:
-                                        UUID ruleId = query.runGrantQuery(this.graphDatabase);
+                                        UUID ruleId = ((GrantQuery) query).runGrantQuery(this.graphDatabase);
                                         if (ruleId == null) {
                                             response.put("@error", "MissingGrantPermission");
                                             responseCode = 403;
                                         } else {
                                             response.put("@rule_id", ruleId);
+                                            this.graphDatabase.recordQuery(query);
                                         }
                                         break;
                                     case SELECT:
-                                        List<Map<String, Node[]>> results = query.runSelectQuery(this.graphDatabase);
+                                        List<Map<String, Node[]>> results = ((SelectQuery) query).runSelectQuery(this.graphDatabase);
                                         JSONArray outputArray = new JSONArray();
                                         for (Map<String, Node[]> result : results) {
                                             JSONObject outNode = new JSONObject();
@@ -171,21 +171,23 @@ public class APIHandlerV1 implements HttpHandler {
                                         response.put("@rows", outputArray);
                                         break;
                                     case LINK:
-                                        if (query.runLinkQuery(this.graphDatabase)) {
+                                        if (((LinkQuery) query).runLinkQuery(this.graphDatabase)) {
                                             response.put("@response", "OK");
+                                            this.graphDatabase.recordQuery(query);
                                         } else {
                                             response.put("@error", "FailedToLink");
                                         }
                                         break;
                                     case UNLINK:
-                                        if (query.runUnlinkQuery(this.graphDatabase)) {
+                                        if (((UnlinkQuery) query).runUnlinkQuery(this.graphDatabase)) {
                                             response.put("@response", "OK");
+                                            this.graphDatabase.recordQuery(query);
                                         } else {
                                             response.put("@error", "FailedToUnlink");
                                         }
                                         break;
                                     case DIRECTORY:
-                                        Map<String, Node> listMap = query.runDirectoryQuery(this.graphDatabase);
+                                        Map<String, Node> listMap = ((DirectoryQuery) query).runDirectoryQuery(this.graphDatabase);
                                         JSONObject nodeList = new JSONObject();
                                         for (String key : listMap.keySet()) {
                                             nodeList.put(key, listMap.get(key).getId());

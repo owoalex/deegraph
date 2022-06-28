@@ -1,10 +1,13 @@
 package com.indentationerror.dds.database;
 
+import com.indentationerror.dds.conditions.EqualityCondition;
+import com.indentationerror.dds.conditions.RawValue;
 import com.indentationerror.dds.exceptions.ClosedJournalException;
 import com.indentationerror.dds.exceptions.DuplicateNodeStoreException;
 import com.indentationerror.dds.exceptions.UnvalidatedJournalSegment;
 import com.indentationerror.dds.formats.UUIDUtils;
 import com.indentationerror.dds.formats.WUUID;
+import com.indentationerror.dds.query.Query;
 import com.indentationerror.dds.server.AuthenticationMethod;
 import com.nimbusds.jose.*;
 import com.nimbusds.jose.crypto.Ed25519Signer;
@@ -151,6 +154,10 @@ public class GraphDatabaseBacking {
 
         this.currentJournalSegment = new JournalSegment(this);
 
+        graphDatabase.getRelevantRule().put("{" + this.instanceId.toString() + "}", new ArrayList<>());
+        // Default rule whereby the root node can access everything
+        graphDatabase.getRelevantRule().get("{" + this.instanceId.toString() + "}").add(new AuthorizationRule(new EqualityCondition(graphDatabase, new RawValue(graphDatabase, "\"{" + this.instanceId.toString() + "}\""), new RawValue(graphDatabase, "/@id")), new AuthorizedAction[] {AuthorizedAction.GRANT, AuthorizedAction.DELEGATE, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.WRITE}));
+
         System.out.println("Restoring journal from disk");
         this.completeJournal = new LinkedList<>();
         File[] directoryListing = dbDirectory.listFiles();
@@ -241,6 +248,10 @@ public class GraphDatabaseBacking {
 
     String getDbLocation() {
         return this.dbLocation;
+    }
+
+    public void recordQuery(Query query) throws ClosedJournalException {
+        getOpenJournal().registerQuery(query);
     }
 
     private JournalSegment getOpenJournal() {
