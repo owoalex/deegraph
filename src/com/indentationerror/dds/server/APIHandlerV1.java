@@ -31,8 +31,9 @@ public class APIHandlerV1 implements HttpHandler {
         JSONObject response = new JSONObject();
         if (Arrays.asList(securityContext.getDatabase().getPermsOnNode(securityContext.getActor(), node)).contains(AuthorizedAction.READ)) {
             response.put("@id", node.getId());
-            if (!node.getGlobalId().getInstanceId().equals(this.graphDatabase.getInstanceId())) {
-                response.put("@global_id", node.getGlobalId());
+            if (!node.getOriginalInstanceId().equals(this.graphDatabase.getInstanceId())) {
+                response.put("@original_instance_id", node.getOriginalInstanceId());
+                response.put("@original_id", node.getOriginalId());
             }
             response.put("@created", df.format(node.getCTime()));
             if (!node.getCTime().equals(node.getOCTime())) {
@@ -74,7 +75,7 @@ public class APIHandlerV1 implements HttpHandler {
         try {
             String authMethod = httpsExchange.getRequestHeaders().getFirst("Authorization");
             String loginNodeId = httpsExchange.getRequestHeaders().getFirst("X-Auxilium-Actor");
-            Node userNode = this.graphDatabase.getNode(UUID.fromString(loginNodeId)); // Do everything from the root node for now
+            Node userNode = this.graphDatabase.getNodeUnsafe(UUID.fromString(loginNodeId)); // Do everything from the root node for now
             SecurityContext securityContext = null;
 
             if (authMethod != null && authMethod.startsWith("Bearer ")) {
@@ -132,8 +133,11 @@ public class APIHandlerV1 implements HttpHandler {
                                 }
 
                                 Query query = Query.fromString(queryText, userNode);
+
+                                //System.out.println(query.getQueryType());
+
                                 switch (query.getQueryType()) {
-                                    case GRANT:
+                                    case GRANT: {
                                         UUID ruleId = ((GrantQuery) query).runGrantQuery(this.graphDatabase);
                                         if (ruleId == null) {
                                             response.put("@error", "MissingGrantPermission");
@@ -143,7 +147,8 @@ public class APIHandlerV1 implements HttpHandler {
                                             this.graphDatabase.recordQuery(query);
                                         }
                                         break;
-                                    case SELECT:
+                                    }
+                                    case SELECT: {
                                         List<Map<String, Node[]>> results = ((SelectQuery) query).runSelectQuery(this.graphDatabase);
                                         JSONArray outputArray = new JSONArray();
                                         for (Map<String, Node[]> result : results) {
@@ -170,7 +175,8 @@ public class APIHandlerV1 implements HttpHandler {
                                         }
                                         response.put("@rows", outputArray);
                                         break;
-                                    case LINK:
+                                    }
+                                    case LINK: {
                                         if (((LinkQuery) query).runLinkQuery(this.graphDatabase)) {
                                             response.put("@response", "OK");
                                             this.graphDatabase.recordQuery(query);
@@ -178,7 +184,8 @@ public class APIHandlerV1 implements HttpHandler {
                                             response.put("@error", "FailedToLink");
                                         }
                                         break;
-                                    case UNLINK:
+                                    }
+                                    case UNLINK: {
                                         if (((UnlinkQuery) query).runUnlinkQuery(this.graphDatabase)) {
                                             response.put("@response", "OK");
                                             this.graphDatabase.recordQuery(query);
@@ -186,7 +193,8 @@ public class APIHandlerV1 implements HttpHandler {
                                             response.put("@error", "FailedToUnlink");
                                         }
                                         break;
-                                    case DIRECTORY:
+                                    }
+                                    case DIRECTORY: {
                                         Map<String, Node> listMap = ((DirectoryQuery) query).runDirectoryQuery(this.graphDatabase);
                                         JSONObject nodeList = new JSONObject();
                                         for (String key : listMap.keySet()) {
@@ -194,6 +202,35 @@ public class APIHandlerV1 implements HttpHandler {
                                         }
                                         response.put("@map", nodeList);
                                         break;
+                                    }
+                                    case PERMISSIONS: {
+                                        AuthorizedAction[] listMap = ((PermissionsQuery) query).runPermissionsQuery(this.graphDatabase);
+                                        response.put("@permissions", listMap);
+                                        break;
+                                    }
+                                    case DELETE: {
+                                        //System.out.println("DELETE QUERY = " + query.toString());
+                                        if (((DeleteQuery) query).runDeleteQuery(this.graphDatabase)) {
+                                            response.put("@response", "OK");
+                                        } else {
+                                            response.put("@error", "FailedToDeleteAll");
+                                        }
+                                        this.graphDatabase.recordQuery(query);
+                                        break;
+                                    }
+                                    case REFERENCES: {
+                                        Map<String, Node[]> listMap = ((ReferencesQuery) query).runReferencesQuery(this.graphDatabase);
+                                        JSONObject nodeList = new JSONObject();
+                                        for (String key : listMap.keySet()) {
+                                            JSONArray nodeArr = new JSONArray();
+                                            for (Node oNode : listMap.get(key)) {
+                                                nodeArr.put(oNode.getId());
+                                            }
+                                            nodeList.put(key, nodeArr);
+                                        }
+                                        response.put("@map", nodeList);
+                                        break;
+                                    }
                                 }
                             } catch (QueryException queryException) {
                                 response.put("@error", queryException.toString());

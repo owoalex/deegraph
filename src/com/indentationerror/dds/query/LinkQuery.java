@@ -19,8 +19,9 @@ public class LinkQuery extends Query {
 
         boolean escape = false;
         String current = parsedQuery.poll();
+        boolean overwrite = false;
         String linkName = "#"; // Wildcard for inserting at the next available numbered property
-        Node[] valueNodes = new RelativeNodePath(current).getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodes());
+        Node[] valueNodes = new RelativeNodePath(current).getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodesUnsafe());
         Node valueNode = (valueNodes.length == 1) ? valueNodes[0] : null;
         Node toNode = null;
         current = parsedQuery.poll();
@@ -31,7 +32,7 @@ public class LinkQuery extends Query {
                     String fromStrPath = parsedQuery.poll();
                     RelativeNodePath fromRelPath = new RelativeNodePath(fromStrPath);
                     if (fromRelPath != null) {
-                        Node[] toNodes = fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodes());
+                        Node[] toNodes = fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodesUnsafe());
                         toNode = (toNodes.length == 1) ? toNodes[0] : null;
                     } else {
                         throw new RuntimeException("Error parsing '" + fromStrPath + "' as path") ;
@@ -39,6 +40,11 @@ public class LinkQuery extends Query {
                     break;
                 case "AS":
                     linkName = parsedQuery.poll();
+                    break;
+                case "OVERWRITE":
+                case "REPLACE":
+                case "FORCE":
+                    overwrite = true;
                     break;
                 default:
                     throw new QueryException(QueryExceptionCode.INVALID_CONTROL_WORD, "'" + current + "' is not a valid control word");
@@ -57,7 +63,7 @@ public class LinkQuery extends Query {
             throw new QueryException(QueryExceptionCode.MISSING_SUBJECT);
         }
 
-        toNode.addProperty(new SecurityContext(graphDatabase, this.actor), linkName, valueNode);
+        toNode.addProperty(new SecurityContext(graphDatabase, this.actor), linkName, valueNode, overwrite);
         //System.out.println("Attempting link");
 
         return true;

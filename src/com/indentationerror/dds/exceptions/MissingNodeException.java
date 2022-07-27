@@ -1,9 +1,10 @@
 package com.indentationerror.dds.exceptions;
 
-import com.indentationerror.dds.formats.WUUID;
+
+import java.util.UUID;
 
 public class MissingNodeException extends Exception {
-    public MissingNodeException(WUUID wuuid) {
+    public MissingNodeException(UUID uuid) {
         super();
     }
 }

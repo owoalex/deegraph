@@ -29,7 +29,7 @@ public class AbsoluteNodePath {
             Matcher matcher = pattern.matcher(pathComponents[0]);
             if (matcher.find()) {
                 String uuid = matcher.group();
-                tailNode = graphDatabase.getNode(UUID.fromString(uuid));
+                tailNode = graphDatabase.getNodeUnsafe(UUID.fromString(uuid));
             } else {
                 tailNode = null;
             }

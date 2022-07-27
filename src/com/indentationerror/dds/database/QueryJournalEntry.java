@@ -4,19 +4,17 @@ import com.indentationerror.dds.exceptions.DuplicatePropertyException;
 import com.indentationerror.dds.query.*;
 
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.UUID;
 
-public class RawQueryJournalEntry extends JournalEntry {
+public class QueryJournalEntry extends JournalEntry {
     private String query;
     private UUID actor;
 
-    public RawQueryJournalEntry(String query, Node actor) {
+    public QueryJournalEntry(String query, Node actor) {
         this(query, actor.getId());
     }
 
-    public RawQueryJournalEntry(String query, UUID actor) {
+    public QueryJournalEntry(String query, UUID actor) {
         this.actor = actor;
         this.query = query;
     }
@@ -31,7 +29,7 @@ public class RawQueryJournalEntry extends JournalEntry {
 
     @Override
     public void replayOn(GraphDatabase graphDatabase) throws ParseException {
-        Query q = Query.fromString(this.query, graphDatabase.getNode(this.actor));
+        Query q = Query.fromString(this.query, graphDatabase.getNodeUnsafe(this.actor));
         try {
             switch (q.getQueryType()) {
                 case GRANT:
@@ -42,6 +40,9 @@ public class RawQueryJournalEntry extends JournalEntry {
                     break;
                 case UNLINK:
                     ((UnlinkQuery) q).runUnlinkQuery(graphDatabase);
+                    break;
+                case DELETE:
+                    ((DeleteQuery) q).runDeleteQuery(graphDatabase);
                     break;
             }
         } catch (NoSuchMethodException e) {

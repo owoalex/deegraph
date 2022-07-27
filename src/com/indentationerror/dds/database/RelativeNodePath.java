@@ -118,7 +118,7 @@ public class RelativeNodePath extends NodePath {
                 if (pathComponents[i].equals("*") || pathComponents[i].equals("#")) {
                     ArrayList<Node> newValidParents = new ArrayList<>();
                     for (Node checkParent : currentValidParents) {
-                        for (String key : checkParent.getAllReferrers().keySet()) {
+                        for (String key : checkParent.getAllReferrersUnsafe().keySet()) {
                             if (key.matches("[0-9].*")) {
                                 if (pathComponents[i].equals("#")) {
                                     newValidParents.addAll(Arrays.asList(checkParent.getReferrers(securityContext, key)));

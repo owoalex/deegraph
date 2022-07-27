@@ -1,18 +1,17 @@
 package com.indentationerror.dds.query;
 
-import com.indentationerror.dds.conditions.Condition;
 import com.indentationerror.dds.database.*;
 
 import java.text.ParseException;
-import java.util.*;
+import java.util.Map;
 
-public class DirectoryQuery extends Query {
-    protected DirectoryQuery(String src, Node actor) throws ParseException {
+public class ReferencesQuery extends Query {
+    protected ReferencesQuery(String src, Node actor) throws ParseException {
         super(src, actor);
     }
 
-    public Map<String, Node> runDirectoryQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException {
-        if (this.queryType != QueryType.DIRECTORY) {
+    public Map<String, Node[]> runReferencesQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException {
+        if (this.queryType != QueryType.REFERENCES) {
             throw new NoSuchMethodException();
         }
 
@@ -23,7 +22,6 @@ public class DirectoryQuery extends Query {
             throw new QueryException(QueryExceptionCode.MISSING_SUBJECT);
         }
 
-        //return valueNode.getProperties(new SecurityContext(graphDatabase, this.actor));
-        return valueNode.getPropertiesUnsafe();
+        return valueNode.getAllReferrers(new SecurityContext(graphDatabase, this.actor));
     }
 }

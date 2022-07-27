@@ -5,5 +5,5 @@ public enum AuthorizedAction {
     READ,
     DELETE,
     DELEGATE,
-    GRANT
+    ACT
 }

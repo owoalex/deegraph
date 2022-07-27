@@ -1,7 +1,6 @@
 package com.indentationerror.dds;
 
 import com.indentationerror.dds.database.GraphDatabase;
-import com.indentationerror.dds.database.GraphDatabaseBacking;
 import com.indentationerror.dds.server.APIServer;
 
 import java.io.IOException;

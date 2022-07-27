@@ -8,5 +8,7 @@ public enum QueryType {
     DELETE,
     INSERT,
     CONSTRUCT,
-    DIRECTORY
+    DIRECTORY,
+    REFERENCES,
+    PERMISSIONS
 }

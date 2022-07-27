@@ -20,7 +20,12 @@ public class EqualityCondition extends Condition {
         this.c2 = c2;
     }
 
-    private byte[] metaProp(Node node, String key, NodePathContext context) throws ParseException {
+    @Override
+    public String toString() {
+        return "(" + c1.toString() + " == " + c2.toString() + ")";
+    }
+
+    private byte[] metaProp(Node node, String key, NodePathContext context, Node requestingNode) throws ParseException {
         TimeZone tz = TimeZone.getTimeZone("UTC");
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
         df.setTimeZone(tz);
@@ -44,15 +49,17 @@ public class EqualityCondition extends Condition {
                 return ("{" + node.getOCNodeId().toString() + "}").getBytes(StandardCharsets.UTF_8);
             case "@id":
                 return ("{" + node.getId().toString() + "}").getBytes(StandardCharsets.UTF_8);
-            case "@global_id":
-                return ("{" + node.getGlobalId().toString() + "}").getBytes(StandardCharsets.UTF_8);
+            case "@original_id":
+                return ("{" + node.getOriginalId().toString() + "}").getBytes(StandardCharsets.UTF_8);
+            case "@original_instance_id":
+                return ("{" + node.getOriginalInstanceId().toString() + "}").getBytes(StandardCharsets.UTF_8);
             case "@created":
                 return df.format(node.getCTime()).getBytes(StandardCharsets.UTF_8);
             case "@originally_created":
                 return df.format(node.getOCTime()).getBytes(StandardCharsets.UTF_8);
             case "@data":
                 if (node.getDataUnsafe() != null) {
-                    return new DataUrl(node.getData(new SecurityContext(this.graphDatabase, context.getActor()))).getRawData();
+                    return new DataUrl(node.getData(new SecurityContext(this.graphDatabase, requestingNode))).getRawData();
                 }
                 break;
         }
@@ -64,6 +71,10 @@ public class EqualityCondition extends Condition {
             String e1 = this.c1.asLiteral(context);
             String e2 = this.c2.asLiteral(context);
 
+            Node requestingNode = context.getActor();
+            if (context.getRequestingNode() != null) {
+                requestingNode = context.getRequestingNode();
+            }
             //System.out.println(e1 + " == " + e2);
 
             byte[] rawValue1 = null;
@@ -87,7 +98,7 @@ public class EqualityCondition extends Condition {
                 }
                 Node e1Node = new RelativeNodePath(e1).toAbsolute(context).getNodeFrom(this.graphDatabase);
                 if (e1Node != null) {
-                    rawValue1 = metaProp(e1Node, prop, context);
+                    rawValue1 = metaProp(e1Node, prop, context, requestingNode);
                 }
             }
 
@@ -110,7 +121,7 @@ public class EqualityCondition extends Condition {
                 }
                 Node e2Node = new RelativeNodePath(e2).toAbsolute(context).getNodeFrom(this.graphDatabase);
                 if (e2Node != null) {
-                    rawValue2 = metaProp(e2Node, prop, context);
+                    rawValue2 = metaProp(e2Node, prop, context, requestingNode);
                 }
             }
 

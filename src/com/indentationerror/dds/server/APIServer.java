@@ -5,7 +5,6 @@ import java.net.InetSocketAddress;
 import java.lang.*;
 
 import com.indentationerror.dds.database.GraphDatabase;
-import com.indentationerror.dds.database.GraphDatabaseBacking;
 import com.sun.net.httpserver.HttpsServer;
 
 import java.nio.charset.Charset;

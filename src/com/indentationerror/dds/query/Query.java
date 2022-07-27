@@ -111,11 +111,18 @@ public class Query {
             case "SELECT":
                 this.queryType = QueryType.SELECT;
                 break;
+            case "LN":
             case "LINK":
                 this.queryType = QueryType.LINK;
                 break;
+            case "LS":
+            case "DIR":
             case "DIRECTORY":
                 this.queryType = QueryType.DIRECTORY;
+                break;
+            case "REFS":
+            case "REFERENCES":
+                this.queryType = QueryType.REFERENCES;
                 break;
             case "UNLINK":
                 this.queryType = QueryType.UNLINK;
@@ -126,8 +133,14 @@ public class Query {
             case "INSERT":
                 this.queryType = QueryType.INSERT;
                 break;
+            case "RM":
+            case "DEL":
             case "DELETE":
                 this.queryType = QueryType.DELETE;
+                break;
+            case "PERMS":
+            case "PERMISSIONS":
+                this.queryType = QueryType.PERMISSIONS;
                 break;
             default:
                 throw new ParseException("'" + qtype + "' is not a valid query type", 0);
@@ -141,18 +154,29 @@ public class Query {
                 return new GrantQuery(query, actor);
             case "SELECT":
                 return new SelectQuery(query, actor);
+            case "LN":
             case "LINK":
                 return new LinkQuery(query, actor);
+            case "LS":
+            case "DIR":
             case "DIRECTORY":
                 return new DirectoryQuery(query, actor);
             case "UNLINK":
                 return new UnlinkQuery(query, actor);
+            case "REFS":
+            case "REFERENCES":
+                return new ReferencesQuery(query, actor);
+            case "PERMS":
+            case "PERMISSIONS":
+                return new PermissionsQuery(query, actor);
             case "CONSTRUCT":
                 //
             case "INSERT":
                 //
+            case "RM":
+            case "DEL":
             case "DELETE":
-                //
+                return new DeleteQuery(query, actor);
             default:
                 throw new ParseException("'" + queryType + "' is not a valid query type", 0);
         }

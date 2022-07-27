@@ -12,6 +12,11 @@ public class RawValue extends Condition {
     }
 
     @Override
+    public String toString() {
+        return this.literal;
+    }
+
+    @Override
     public String asLiteral(NodePathContext context) {
         return this.literal;
     }

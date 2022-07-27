@@ -1,7 +1,6 @@
 package com.indentationerror.dds.conditions;
 
 import com.indentationerror.dds.database.GraphDatabase;
-import com.indentationerror.dds.database.GraphDatabaseBacking;
 import com.indentationerror.dds.database.NodePathContext;
 
 public class LogicalAndCondition extends LogicalCondition {
@@ -12,6 +11,11 @@ public class LogicalAndCondition extends LogicalCondition {
         super(graphDatabase);
         this.condition1 = condition1;
         this.condition2 = condition2;
+    }
+
+    @Override
+    public String toString() {
+        return "(" + condition1.toString() + " && " + condition2.toString() + ")";
     }
 
     @Override

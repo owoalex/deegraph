@@ -34,8 +34,8 @@ public class GrantQuery extends Query {
                 case "DELEGATE":
                     actions.add(AuthorizedAction.DELEGATE);
                     break;
-                case "GRANT":
-                    actions.add(AuthorizedAction.GRANT);
+                case "ACT":
+                    actions.add(AuthorizedAction.ACT);
                     break;
                 default:
                     throw new ParseException("'" + current + "' is not a valid permission", 0);
@@ -52,7 +52,7 @@ public class GrantQuery extends Query {
                     String fromStrPath = parsedQuery.poll();
                     RelativeNodePath fromRelPath = new RelativeNodePath(fromStrPath);
                     if (fromRelPath != null) {
-                        onNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodes())));
+                        onNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodesUnsafe())));
                     } else {
                         throw new RuntimeException("Error parsing '" + fromStrPath + "' as path") ;
                     }
@@ -70,26 +70,15 @@ public class GrantQuery extends Query {
         }
 
         AuthorizationRule rule = new AuthorizationRule(condition, actions.toArray(new AuthorizedAction[0]));
-        if (onNodes == null) {
-            List<AuthorizedAction> authorizedActions = Arrays.asList(graphDatabase.getPermsOnNode(this.actor, graphDatabase.getNode(graphDatabase.getInstanceId())));
-            if (authorizedActions.contains(AuthorizedAction.GRANT)) { // Only allow users who have grant perms on the instance (root) node to write global permissions
+        List<AuthorizedAction> authorizedActions = Arrays.asList(graphDatabase.getPermsOnNode(this.actor, graphDatabase.getNodeUnsafe(graphDatabase.getInstanceId())));
+        if (authorizedActions.contains(AuthorizedAction.ACT)) { // Only allow users who have permissions to act as the instance (root) node to write permissions
+            if (onNodes == null) {
                 graphDatabase.registerRule(rule, "*");
             } else {
-                System.out.println("GRANT FAILED FOR * AS {" + this.actor.getId() + "}");
-                return null; // Discard the rule - we didn't have permission to add it
-            }
-        } else {
-            boolean atLeastOne = false;
-            for (Node cn : onNodes) {
-                List<AuthorizedAction> authorizedActions = Arrays.asList(graphDatabase.getPermsOnNode(this.actor, cn));
-                if (authorizedActions.contains(AuthorizedAction.GRANT)) { // Check for each node to make sure the use rhas permissions
+                for (Node cn : onNodes) {
                     graphDatabase.registerRule(rule, cn.getId().toString());
-                    atLeastOne = true;
                 }
-            }
-            if (!atLeastOne) {
-                System.out.println("GRANT FAILED FOR NODES");
-                return null; // Discard the rule - we didn't have permission to add it
+                graphDatabase.registerRule(rule, this.actor.getId().toString());
             }
         }
         return rule.getUuid();

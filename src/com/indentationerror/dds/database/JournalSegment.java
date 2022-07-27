@@ -4,7 +4,6 @@ import com.indentationerror.dds.exceptions.ClosedJournalException;
 import com.indentationerror.dds.exceptions.DuplicateNodeStoreException;
 import com.indentationerror.dds.exceptions.MissingNodeException;
 import com.indentationerror.dds.exceptions.UnvalidatedJournalSegment;
-import com.indentationerror.dds.formats.WUUID;
 import com.indentationerror.dds.query.Query;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSObject;
@@ -12,6 +11,7 @@ import com.nimbusds.jose.Payload;
 import com.nimbusds.jose.crypto.Ed25519Verifier;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.OctetKeyPair;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.*;
@@ -33,27 +33,27 @@ public class JournalSegment {
     private Date openDate;
     private Date closeDate;
     private UUID journalUuid;
-    private GraphDatabaseBacking graphDatabaseBacking;
+    private GraphDatabase graphDatabase;
     private UUID originalDatabaseInstanceId;
 
     private File saveFile;
     private FileWriter saveFileWriter;
 
-    public JournalSegment(GraphDatabaseBacking graphDatabaseBacking) throws IOException {
+    public JournalSegment(GraphDatabase graphDatabase) throws IOException {
         this.segmentActions = new LinkedList<>();
         this.open = true;
-        this.graphDatabaseBacking = graphDatabaseBacking;
+        this.graphDatabase = graphDatabase;
         this.openDate = new Date();
         this.journalUuid = UUID.randomUUID();
-        this.originalDatabaseInstanceId = graphDatabaseBacking.getInstanceId();
-        this.saveFile = new File(graphDatabaseBacking.getDbLocation() + this.getId() + ".njs"); // Node journal segment
+        this.originalDatabaseInstanceId = graphDatabase.getInstanceId();
+        this.saveFile = new File(graphDatabase.getDbLocation() + this.getId() + ".journal.dgc"); // deegraph container
         this.saveFile.createNewFile();
         this.saveFileWriter = new FileWriter(this.saveFile);
         this.localSegment = true;
     }
 
-    public JournalSegment(GraphDatabaseBacking graphDatabaseBacking, File file) throws IOException, UnvalidatedJournalSegment {
-        this.graphDatabaseBacking = graphDatabaseBacking;
+    public JournalSegment(GraphDatabase graphDatabaseBacking, File file) throws IOException, UnvalidatedJournalSegment {
+        this.graphDatabase = graphDatabaseBacking;
         this.segmentActions = new LinkedList<>();
         this.open = false;
         this.saveFile = file;
@@ -66,9 +66,9 @@ public class JournalSegment {
 
     public void registerNewNode(Node node) throws ClosedJournalException, DuplicateNodeStoreException {
         if (this.open) {
-            if (this.graphDatabaseBacking.getNode(node.getId()) == null && this.graphDatabaseBacking.getNode(node.getGlobalId()) == null) {
+            if (this.graphDatabase.getNodeUnsafe(node.getId()) == null && this.graphDatabase.getNodeUnsafe(node.getOriginalInstanceId(), node.getOriginalId()) == null) {
                 this.segmentActions.add(new NewNodeJournalEntry(node));
-                this.graphDatabaseBacking.registerNode(node);
+                this.graphDatabase.registerNodeUnsafe(node);
             } else {
                 throw new DuplicateNodeStoreException(node);
             }
@@ -79,14 +79,11 @@ public class JournalSegment {
 
     public void registerQuery(Query query) throws ClosedJournalException {
         if (this.open) {
-            this.segmentActions.add(new RawQueryJournalEntry(query.toString(), query.getActor()));
+            this.segmentActions.add(new QueryJournalEntry(query.toString(), query.getActor()));
+            //System.out.println(query.toString());
         } else {
             throw new ClosedJournalException(this);
         }
-    }
-
-    public void replayOn(GraphDatabase graphDatabase) {
-        this.replayOn(graphDatabase, true);
     }
 
     public void replayOn(GraphDatabase graphDatabase, boolean faultTolerant) {
@@ -150,13 +147,9 @@ public class JournalSegment {
                                                 TemporalAccessor ta = DateTimeFormatter.ISO_INSTANT.parse(creationTimestamp);
                                                 globalCreationDate = Date.from(Instant.from(ta));
                                             }
-                                            WUUID globalId = null;
-                                            if (props.get("global-content-id") != null) {
-                                                globalId = WUUID.fromString(props.get("global-content-id").get(0));
-                                            }
-                                            WUUID oCNodeId = null;
-                                            if (props.get("global-creator-id") != null) {
-                                                oCNodeId = WUUID.fromString(props.get("global-creator-id").get(0));
+                                            UUID oCNodeId = null;
+                                            if (props.get("original-instance-id") != null) {
+                                                oCNodeId = UUID.fromString(props.get("original-instance-id").get(0));
                                             }
                                             UUID cNodeId = null;
                                             if (props.get("creator-id") != null) {
@@ -170,32 +163,16 @@ public class JournalSegment {
                                             if (props.get("schema") != null) {
                                                 schema = props.get("schema").get(0);
                                             }
+                                            TrustBlock trustRoot = null;
+                                            if (props.get("trust-root") != null) {
+                                                //trustRoot = props.get("trust-root").get(0);
+                                            }
                                             String contentStr = null;
                                             if (content != null) {
                                                 contentStr = String.join("\n", content.toArray(new String[0]));
                                             }
 
-                                            NewNodeJournalEntry nodeJournalEntry = new NewNodeJournalEntry(localId, globalId, cNodeId, oCNodeId, contentStr, schema, creationDate, globalCreationDate);
-                                            this.segmentActions.offer(nodeJournalEntry);
-                                        }
-                                        break;
-                                    case "archive-node": {
-                                            Date ts = null;
-                                            if (props.containsKey("archive-timestamp") && props.get("archive-timestamp").size() != 0) {
-                                                String creationTimestamp = props.get("archive-timestamp").get(0);
-                                                TemporalAccessor ta = DateTimeFormatter.ISO_INSTANT.parse(creationTimestamp);
-                                                ts = Date.from(Instant.from(ta));
-                                            }
-                                            WUUID globalId = null;
-                                            if (props.get("global-content-id") != null) {
-                                                globalId = WUUID.fromString(props.get("global-content-id").get(0));
-                                            }
-                                            UUID localId = null;
-                                            if (props.get("content-id") != null) {
-                                                localId = UUID.fromString(props.get("content-id").get(0));
-                                            }
-
-                                            NodeArchiveJournalEntry nodeJournalEntry = new NodeArchiveJournalEntry(localId, globalId, ts);
+                                            NewNodeJournalEntry nodeJournalEntry = new NewNodeJournalEntry(localId, localId, this.graphDatabase.getInstanceId(), cNodeId, oCNodeId, contentStr, schema, creationDate, globalCreationDate, trustRoot);
                                             this.segmentActions.offer(nodeJournalEntry);
                                         }
                                         break;
@@ -215,8 +192,8 @@ public class JournalSegment {
                                                 contentStr = String.join("\n", content.toArray(new String[0]));
                                             }
 
-                                            RawQueryJournalEntry rawQueryJournalEntry = new RawQueryJournalEntry(contentStr, actorId);
-                                            this.segmentActions.offer(rawQueryJournalEntry);
+                                            QueryJournalEntry queryJournalEntry = new QueryJournalEntry(contentStr, actorId);
+                                            this.segmentActions.offer(queryJournalEntry);
                                         }
                                         break;
                                 }
@@ -339,7 +316,7 @@ public class JournalSegment {
             digest = MessageDigest.getInstance("SHA-256");
             byte[] bodyHash = digest.digest(bodyStringBuilder.toString().getBytes(StandardCharsets.UTF_8));
 
-            File jwkFile = new File(this.graphDatabaseBacking.getDbLocation() + sourceInstance.toString() + ".public.jwk");
+            File jwkFile = new File(this.graphDatabase.getDbLocation() + sourceInstance.toString() + ".public.jwk");
 
             if (jwkFile.exists() && jwkFile.isFile() && jwkFile.canRead()) {
                 StringBuilder jsonBuilder = new StringBuilder();
@@ -370,8 +347,8 @@ public class JournalSegment {
             if (publicJWK != null && parsedJWSObject != null) {
                 try {
                     if (parsedJWSObject.verify(new Ed25519Verifier(publicJWK))) {
-                        if (this.graphDatabaseBacking.getInstanceId() != sourceInstance) {
-                            this.graphDatabaseBacking = null; // Make sure we don't get confused about what created this
+                        if (this.graphDatabase.getInstanceId() != sourceInstance) {
+                            this.graphDatabase = null; // Make sure we don't get confused about what created this
                         }
                         return true;
                     } else {
@@ -384,12 +361,18 @@ public class JournalSegment {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
-        this.graphDatabaseBacking = null; // Since this segment couldn't be verified, make sure we don't attach a database instance
+        this.graphDatabase = null; // Since this segment couldn't be verified, make sure we don't attach a database instance
         return false;
     }
 
-    @Override
-    public String toString() {
+    public static JournalSegment fromDumpV2(GraphDatabase gdb, BufferedReader input) throws IOException, UnvalidatedJournalSegment {
+        JournalSegment out = new JournalSegment(gdb);
+        out.localSegment = false;
+        return out;
+    }
+
+
+    public String toStringOld() {
         TimeZone tz = TimeZone.getTimeZone("UTC");
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
         df.setTimeZone(tz);
@@ -405,7 +388,6 @@ public class JournalSegment {
             if (currentEntry instanceof NewNodeJournalEntry) {
                 NewNodeJournalEntry newNodeEntry = ((NewNodeJournalEntry) currentEntry);
                 sb.append("Entry-Type: new-node\r\n");
-                sb.append("Global-Content-ID: "); sb.append(newNodeEntry.getGlobalId()); sb.append("\r\n");
                 sb.append("Content-ID: "); sb.append(newNodeEntry.getId()); sb.append("\r\n");
                 sb.append("Creation-Timestamp: "); sb.append(df.format(newNodeEntry.getCTime())); sb.append("\r\n");
                 sb.append("Global-Creation-Timestamp: "); sb.append(df.format(newNodeEntry.getOCTime())); sb.append("\r\n");
@@ -425,6 +407,7 @@ public class JournalSegment {
                     sb.append("\r\n");
                 }
 
+
                 sb.append("\r\n");
                 String data = newNodeEntry.getData();
                 if (data != null) {
@@ -432,15 +415,8 @@ public class JournalSegment {
                     sb.append("\r\n");
                 }
             }
-            if (currentEntry instanceof NodeArchiveJournalEntry) {
-                NodeArchiveJournalEntry specificEntry = ((NodeArchiveJournalEntry) currentEntry);
-                sb.append("Entry-Type: archive-node\r\n");
-                sb.append("Global-Content-ID: "); sb.append(specificEntry.getGlobalId()); sb.append("\r\n");
-                sb.append("Content-ID: "); sb.append(specificEntry.getLocalId()); sb.append("\r\n");
-                sb.append("Archive-Timestamp: "); sb.append(df.format(specificEntry.getTimestamp())); sb.append("\r\n");
-            }
-            if (currentEntry instanceof RawQueryJournalEntry) {
-                RawQueryJournalEntry specificEntry = ((RawQueryJournalEntry) currentEntry);
+            if (currentEntry instanceof QueryJournalEntry) {
+                QueryJournalEntry specificEntry = ((QueryJournalEntry) currentEntry);
                 sb.append("Entry-Type: query\r\n");
                 sb.append("Actor-ID: "); sb.append(specificEntry.getActor()); sb.append("\r\n");
                 sb.append("Timestamp: "); sb.append(df.format(specificEntry.getTimestamp())); sb.append("\r\n");
@@ -511,7 +487,7 @@ public class JournalSegment {
             digest = MessageDigest.getInstance("SHA-256");
             byte[] bodyHash = digest.digest(bodyString.getBytes(StandardCharsets.UTF_8));
             header.append("Body-Signature: ");
-            header.append(this.graphDatabaseBacking.signPayload(bodyHash));
+            header.append(this.graphDatabase.signPayload(bodyHash));
             header.append("\r\n");
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
@@ -522,6 +498,39 @@ public class JournalSegment {
         return header.toString();
     }
 
+    @Override
+    public String toString() {
+        TimeZone tz = TimeZone.getTimeZone("UTC");
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
+        df.setTimeZone(tz);
+
+        //String[] segments = new String[this.segmentActions.size()];
+        //Queue<JournalEntry> originalQueue = new LinkedList<>();
+        StringBuilder sb = new StringBuilder();
+        //int currentSegment = 0;
+        JSONArray journalOutput = new JSONArray();
+
+        while (this.segmentActions.isEmpty() == false) {
+            JournalEntry currentEntry = segmentActions.poll();
+            JSONObject entryJson = currentEntry.asJson();
+            journalOutput.put(entryJson);
+        }
+
+        String stringJournal = journalOutput.toString(4).replaceAll("\r", "").replaceAll("\n", "\r\n");
+        MessageDigest digest = null;
+        try {
+            digest = MessageDigest.getInstance("SHA-256");
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+        byte[] journalAsBytes = stringJournal.getBytes(StandardCharsets.UTF_8);
+        sb.append("deegraph-container-version: 1.0\r\n");
+        sb.append("content-type: application/json\r\n");
+        sb.append("content-signature: " + this.graphDatabase.signPayload(digest.digest(journalAsBytes)) + "\r\n");
+        sb.append("\r\n");
+        sb.append(stringJournal);
+        return sb.toString();
+    }
     public void close() throws IOException {
         if (this.open) { // If it's already closed, why close it again?
             this.closeDate = new Date();

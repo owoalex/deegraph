@@ -31,7 +31,7 @@ public class SelectQuery extends Query {
         }
         Condition condition = null;
         String schemaLimit = null;
-        ArrayList<Node> candidateNodes = new ArrayList<>(Arrays.asList(graphDatabase.getAllNodes()));
+        ArrayList<Node> candidateNodes = new ArrayList<>(Arrays.asList(graphDatabase.getAllNodesUnsafe()));
         escape = (current == null);
         while (!escape) {
             switch (current.toUpperCase(Locale.ROOT)) {
@@ -39,7 +39,7 @@ public class SelectQuery extends Query {
                     String fromStrPath = parsedQuery.poll();
                     RelativeNodePath fromRelPath = new RelativeNodePath(fromStrPath);
                     if (fromRelPath != null) {
-                        candidateNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodes())));
+                        candidateNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodesUnsafe())));
                     } else {
                         throw new RuntimeException("Error parsing '" + fromStrPath + "' as path") ;
                     }
@@ -86,7 +86,7 @@ public class SelectQuery extends Query {
         for (Node candidate : candidateNodes) { // Expand the output to provide every node
             HashMap<String, Node[]> resultRepresentation = new HashMap<>();
             for (String property : requestedProperties) {
-                Node[] matches = new RelativeNodePath(property).getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, candidate), graphDatabase.getAllNodes());
+                Node[] matches = new RelativeNodePath(property).getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, candidate), graphDatabase.getAllNodesUnsafe());
                 resultRepresentation.put(property, matches);
             }
             outputMaps.add(resultRepresentation);

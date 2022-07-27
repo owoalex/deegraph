@@ -30,7 +30,7 @@ public class UnlinkQuery extends Query {
                     String fromStrPath = parsedQuery.poll();
                     RelativeNodePath fromRelPath = new RelativeNodePath(fromStrPath);
                     if (fromRelPath != null) {
-                        Node[] parentNodes = fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodes());
+                        Node[] parentNodes = fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodesUnsafe());
                         parentNode = (parentNodes.length == 1) ? parentNodes[0] : null;
                     } else {
                         throw new RuntimeException("Error parsing '" + fromStrPath + "' as path") ;
@@ -51,7 +51,7 @@ public class UnlinkQuery extends Query {
 
         RelativeNodePath fromRelPath = new RelativeNodePath(firstString);
         if (fromRelPath != null) {
-            Node[] parentNodes = fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, parentNode), graphDatabase.getAllNodes());
+            Node[] parentNodes = fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, parentNode), graphDatabase.getAllNodesUnsafe());
             childNode = (parentNodes.length == 1) ? parentNodes[0] : null;
         } else {
             throw new RuntimeException("Error parsing '" + firstString + "' as path") ;
