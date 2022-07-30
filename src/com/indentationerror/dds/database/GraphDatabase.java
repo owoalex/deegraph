@@ -33,6 +33,8 @@ import java.util.stream.Stream;
 
 public class GraphDatabase {
     private ArrayList<AuthorizationRule> authorizationRules; // Stores all the parsed authorization rules used for generating permissions
+
+    private HashMap<UUID, ArrayList<OctetKeyPair>> instanceTrustStore; // Stores instance public keys we trust
     private HashMap<String, ArrayList<AuthenticationMethod>> authenticationMethods;
 
     private HashMap<String, ArrayList<AuthorizationRule>> relevantRule; // To save searching for rules that matter between two nodes every request, cache the result of the search
@@ -56,7 +58,7 @@ public class GraphDatabase {
 
     private static byte[] NAMESPACE_DNS = UUIDUtils.asBytes(UUID.fromString("6ba7b810-9dad-11d1-80b4-00c04fd430c8"));
 
-    public GraphDatabase(String configFilePath) throws UnvalidatedJournalSegment, IOException, NoSuchAlgorithmException {
+    public GraphDatabase(String configFilePath) throws UnvalidatedJournalSegment, IOException {
         File configFile = new File(configFilePath);
         StringBuilder jsonBuilder = new StringBuilder();
         try (BufferedReader br = new BufferedReader(new FileReader(configFile))) {
@@ -67,6 +69,7 @@ public class GraphDatabase {
         }
         this.config = new JSONObject(jsonBuilder.toString());
 
+        this.instanceTrustStore = new HashMap<>();
         this.authenticationMethods = new HashMap<>();
         this.authorizationRules = new ArrayList<>();
         this.relevantRule = new HashMap<>();
@@ -84,24 +87,7 @@ public class GraphDatabase {
         if (this.config.has("journal_lifetime")) {
             maxJournalAgeMs = 1000 * this.config.getInt("journal_lifetime");
         }
-        byte[] fqdnBytes = this.instanceFqdn.getBytes();
-        MessageDigest md = MessageDigest.getInstance("SHA-1");
-        byte[] compound = new byte[NAMESPACE_DNS.length + fqdnBytes.length];
-        System.arraycopy(NAMESPACE_DNS, 0, compound, 0, NAMESPACE_DNS.length);
-        System.arraycopy(fqdnBytes, 0, compound, NAMESPACE_DNS.length, fqdnBytes.length);
-        byte[] hash = md.digest(compound);
-        byte[] result = new byte[16];
-        // copy first 16-bytes of the hash into our Uuid result
-        System.arraycopy(hash, 0, result, 0, result.length);
-        // set high-nibble to 5 to indicate type 5
-        result[6] &= 0x0F;
-        result[6] |= 0x50;
-
-        // set upper two bits to "10"
-        result[8] &= 0x3F;
-        result[8] |= 0x80;
-
-        this.instanceId = UUIDUtils.asUUID(result);
+        this.instanceId = GraphDatabase.instanceFQDNToUUID(this.instanceFqdn);
 
         this.registeredNodes = new HashMap<>();
 
@@ -169,6 +155,10 @@ public class GraphDatabase {
             }
         }
 
+        ArrayList<OctetKeyPair> ownKeyList = new ArrayList<>();
+        ownKeyList.add(this.jwk.toPublicJWK());
+        this.instanceTrustStore.put(this.instanceId, ownKeyList);
+
         this.currentJournalSegment = new JournalSegment(this);
 
         this.getRelevantRule().put("{" + this.instanceId.toString() + "}", new ArrayList<>());
@@ -181,22 +171,17 @@ public class GraphDatabase {
         Arrays.sort(directoryListing);
         boolean journalEmpty = true;
         for (File child : directoryListing) {
-            if (child.getName().endsWith(".njs") && child.canRead()) {
-                if (child.length() > 0) { // Don't replay an empty journal file! - This can happen on an unclean shutdown
-                    System.out.println("Replaying journal segment [" + child.getName() + "]");
-                    JournalSegment journalSegment = new JournalSegment(this, child);
-                    journalSegment.replayOn(this, false);
-                    this.completeJournal.offer(journalSegment);
-                    journalEmpty = false;
-                }
-            }
             if (child.getName().endsWith(".journal.dgc") && child.canRead()) {
                 if (child.length() > 0) { // Don't try to read an empty container file! - This can happen on an unclean shutdown
-                    System.out.println("Replaying v2 journal segment [" + child.getName() + "]");
-                    JournalSegment journalSegment = JournalSegment.fromDumpV2(this, new BufferedReader(new FileReader(child)));
-                    journalSegment.replayOn(this, false);
-                    this.completeJournal.offer(journalSegment);
-                    journalEmpty = false;
+                    try {
+                        System.out.println("Replaying journal segment [" + child.getName() + "]");
+                        JournalSegment journalSegment = new JournalSegment(this, new BufferedReader(new FileReader(child)));
+                        journalSegment.replay(false);
+                        this.completeJournal.offer(journalSegment);
+                        journalEmpty = false;
+                    } catch (ParseException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             }
         }
@@ -209,7 +194,7 @@ public class GraphDatabase {
         if (this.getNodeUnsafe(this.instanceId) == null) {
             System.out.println("No instance node found");
             try {
-                Node instanceNode = new Node(this, this.instanceId, this.instanceId, this.instanceId, null, null, null, null);
+                Node instanceNode = new Node(this, this.instanceId, this.instanceId, this.instanceId, null, this.instanceId, null, null);
                 instanceNode.makeSelfReferential();
                 getOpenJournal().registerNewNode(instanceNode);
                 System.out.println("Created instance node");
@@ -220,9 +205,9 @@ public class GraphDatabase {
             }
         }
 
-        for (UUID nodeId : registeredNodes.keySet()) {
-            System.out.println(nodeId);
-        }
+        //for (UUID nodeId : registeredNodes.keySet()) {
+        //    System.out.println(nodeId);
+        //}
 
         if (this.getConfig().has("root_auth_tokens")) {
             if (!this.authenticationMethods.containsKey(this.getInstanceId())) {
@@ -238,6 +223,68 @@ public class GraphDatabase {
 
     HashMap<String, ArrayList<AuthorizationRule>> getRelevantRule() {
         return this.relevantRule;
+    }
+
+    public OctetKeyPair[] getInstanceKeys(UUID instanceId) {
+        return instanceTrustStore.containsKey(instanceId) ? instanceTrustStore.get(instanceId).toArray(new OctetKeyPair[0]) : new OctetKeyPair[0];
+    }
+
+    public OctetKeyPair[] getInstanceKeys(String instanceId) {
+        return getInstanceKeys(GraphDatabase.instanceFQDNToUUID(instanceId));
+    }
+
+    public static UUID instanceFQDNToUUID(String fqdn) {
+        try {
+            byte[] fqdnBytes = fqdn.getBytes();
+            MessageDigest md = MessageDigest.getInstance("SHA-1");
+            byte[] compound = new byte[NAMESPACE_DNS.length + fqdnBytes.length];
+            System.arraycopy(NAMESPACE_DNS, 0, compound, 0, NAMESPACE_DNS.length);
+            System.arraycopy(fqdnBytes, 0, compound, NAMESPACE_DNS.length, fqdnBytes.length);
+            byte[] hash = md.digest(compound);
+            byte[] result = new byte[16];
+            // copy first 16-bytes of the hash into our Uuid result
+            System.arraycopy(hash, 0, result, 0, result.length);
+            // set high-nibble to 5 to indicate type 5
+            result[6] &= 0x0F;
+            result[6] |= 0x50;
+
+            // set upper two bits to "10"
+            result[8] &= 0x3F;
+            result[8] |= 0x80;
+
+            return UUIDUtils.asUUID(result);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public boolean registerPeerNodeKey(String fqdn, OctetKeyPair ocp, Node actor) {
+        if (this.installPeerNodeKey(fqdn, ocp, actor)) {
+            //this.getOpenJournal().
+            while (true) {
+                try {
+                    this.getOpenJournal().registerEntry(new TrustKeyJournalEntry(ocp, fqdn, actor.getId()));
+                    break;
+                } catch (ClosedJournalException e) {}
+            }
+        }
+        return false;
+    }
+
+    public boolean installPeerNodeKey(String fqdn, OctetKeyPair ocp, Node actor) {
+        if (Arrays.asList(this.getPermsOnNode(actor, this.getInstanceNode())).contains(AuthorizedAction.ACT)) { // Make sure the actor trying to put this rule into place has root perms
+            UUID peerId = GraphDatabase.instanceFQDNToUUID(fqdn);
+            if (!this.instanceTrustStore.containsKey(peerId)) {
+                this.instanceTrustStore.put(peerId, new ArrayList<>());
+            }
+            if (!this.registeredNodes.containsKey(peerId)) {
+                Node node = new Node(this, peerId, peerId, peerId, actor, peerId, null, null);
+                this.registerNodeUnsafe(node);
+            }
+            //this.getNodeUnsafe(peerId)
+            this.instanceTrustStore.get(peerId).add(ocp);
+        }
+        return false;
     }
 
     public List<AuthenticationMethod> getAuthMethods(Node node) {
@@ -260,8 +307,10 @@ public class GraphDatabase {
         ArrayList<AuthorizationRule> rules = new ArrayList<>();
 
         rules.addAll(this.relevantRule.get("*"));
-        if (this.relevantRule.containsKey("{" + actor.getId().toString() + "}")) {
-            rules.addAll(this.relevantRule.get("{" + actor.getId().toString() + "}"));
+        if (actor != null) {
+            if (this.relevantRule.containsKey("{" + actor.getId().toString() + "}")) {
+                rules.addAll(this.relevantRule.get("{" + actor.getId().toString() + "}"));
+            }
         }
         if (this.relevantRule.containsKey("{" + object.getId().toString() + "}")) {
             rules.addAll(this.relevantRule.get("{" + object.getId().toString() + "}"));
@@ -332,7 +381,7 @@ public class GraphDatabase {
     }
 
     public void recordQuery(Query query) throws ClosedJournalException {
-        getOpenJournal().registerQuery(query);
+        getOpenJournal().registerEntry(new QueryJournalEntry(query.toString(), query.getActor()));
         //System.out.println("RQ: " + query.toString());
     }
 

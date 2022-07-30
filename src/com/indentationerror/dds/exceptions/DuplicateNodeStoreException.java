@@ -4,6 +4,6 @@ import com.indentationerror.dds.database.Node;
 
 public class DuplicateNodeStoreException extends Exception {
     public DuplicateNodeStoreException(Node node) {
-        super();
+        super(node.getId().toString());
     }
 }

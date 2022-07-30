@@ -62,14 +62,14 @@ public class Node {
     public TrustBlock getTrustRoot() {
         return trustRoot;
     }
-    public byte[] getHash(SecurityContext securityContext) {
+    public byte[] getHash() {
         MessageDigest digest = null;
         try {
             digest = MessageDigest.getInstance("SHA-256");
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
-        String data = this.getData(securityContext);
+        String data = this.getDataUnsafe();
         String schema = this.getSchema();
         byte[] dataBytes = (data == null) ? new byte[0] : data.getBytes(StandardCharsets.UTF_8);
         byte[] schemaBytes = (schema == null) ? new byte[0] : schema.getBytes(StandardCharsets.UTF_8);

@@ -2,6 +2,7 @@ package com.indentationerror.dds.database;
 
 import com.indentationerror.dds.exceptions.DuplicatePropertyException;
 import com.indentationerror.dds.query.*;
+import org.json.JSONObject;
 
 import java.text.ParseException;
 import java.util.UUID;
@@ -28,7 +29,21 @@ public class QueryJournalEntry extends JournalEntry {
     }
 
     @Override
-    public void replayOn(GraphDatabase graphDatabase) throws ParseException {
+    public JSONObject asJson() {
+        JSONObject out = new JSONObject();
+        out.put("type", "QUERY");
+        out.put("actor_id", this.actor);
+        out.put("query", this.query);
+        return out;
+    }
+
+    public static JournalEntry fromJson(JSONObject input) {
+        UUID actor = UUID.fromString(input.getString("actor_id"));
+        String query = input.getString("query");
+        return new QueryJournalEntry(query, actor);
+    }
+    @Override
+    public boolean replayOn(GraphDatabase graphDatabase, Node source) throws ParseException {
         Query q = Query.fromString(this.query, graphDatabase.getNodeUnsafe(this.actor));
         try {
             switch (q.getQueryType()) {
@@ -52,5 +67,6 @@ public class QueryJournalEntry extends JournalEntry {
         } catch (DuplicatePropertyException e) {
             throw new RuntimeException(e);
         }
+        return false;
     }
 }

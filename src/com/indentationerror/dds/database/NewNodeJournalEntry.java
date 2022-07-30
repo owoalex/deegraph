@@ -4,6 +4,7 @@ import com.indentationerror.dds.exceptions.DuplicateNodeStoreException;
 import org.json.JSONObject;
 
 import java.security.SecureRandom;
+import java.text.ParseException;
 import java.util.Date;
 import java.util.UUID;
 
@@ -50,7 +51,7 @@ public class NewNodeJournalEntry extends JournalEntry {
     }
 
     @Override
-    public void replayOn(GraphDatabase graphDatabase) throws DuplicateNodeStoreException {
+    public boolean replayOn(GraphDatabase graphDatabase, Node source) throws DuplicateNodeStoreException {
         if (graphDatabase.getNodeUnsafe(this.originalId, this.originalInstanceId) != null) { // We already have this exact node in the database!
             throw new DuplicateNodeStoreException(graphDatabase.getNodeUnsafe(this.originalId, this.originalInstanceId));
         }
@@ -59,6 +60,7 @@ public class NewNodeJournalEntry extends JournalEntry {
         }
         Node node = new Node(graphDatabase, this.localId, this.originalId, this.originalInstanceId, graphDatabase.getNodeUnsafe(this.cNode), this.oCNode, this.data, this.schema, this.timestamp, this.oCTime, this.trustRoot);
         graphDatabase.registerNodeUnsafe(node);
+        return false;
     }
 
     public UUID getId() {
@@ -96,9 +98,23 @@ public class NewNodeJournalEntry extends JournalEntry {
         return schema;
     }
 
+    public static JournalEntry fromJson(JSONObject input) throws ParseException {
+        UUID localId = UUID.fromString(input.getString("local_id"));
+        UUID originalId = UUID.fromString(input.getString("original_id"));
+        UUID originalInstanceId = UUID.fromString(input.getString("original_instance_id"));
+        UUID cNode = UUID.fromString(input.getString("creator_node"));
+        UUID oCNode = UUID.fromString(input.getString("original_creator"));
+        String data = input.has("data") ? input.getString("data") : null;
+        String schema = input.has("schema") ? input.getString("schema") : null;
+        Date cTime = JournalEntry.fromFormattedDate(input.getString("created"));
+        Date oCTime = JournalEntry.fromFormattedDate(input.getString("first_appeared"));
+        TrustBlock trustRoot = TrustBlock.fromJson(input.getJSONObject("trust_chain"));
+        return new NewNodeJournalEntry(localId, originalId, originalInstanceId, cNode, oCNode, data, schema, cTime, oCTime, trustRoot);
+    }
     @Override
     public JSONObject asJson() {
         JSONObject out = new JSONObject();
+        out.put("type", "NEW_NODE");
         out.put("local_id", this.localId);
         out.put("original_id", this.originalId);
         out.put("original_instance_id", this.originalInstanceId);

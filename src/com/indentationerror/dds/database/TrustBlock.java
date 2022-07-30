@@ -8,11 +8,11 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.UUID;
 
 public class TrustBlock {
-    GraphDatabase gdb;
     byte[] hash;
     JWSObject signature;
     UUID guarantorId;
@@ -20,8 +20,7 @@ public class TrustBlock {
     ArrayList<TrustBlock> trustedBy;
 
 
-    public TrustBlock(GraphDatabase gdb, UUID guarantorId, String guarantorFqdn, JWSObject signature) {
-        this.gdb = gdb;
+    public TrustBlock(UUID guarantorId, String guarantorFqdn, JWSObject signature) {
         this.signature = signature;
         this.guarantorId = guarantorId;
         this.guarantorFqdn = guarantorFqdn;
@@ -50,8 +49,8 @@ public class TrustBlock {
     }
 
     public static TrustBlock createRoot(Node node, GraphDatabase gdb) {
-        JWSObject signature = gdb.signPayloadRaw(node.getHash(new SecurityContext(gdb, gdb.getInstanceNode())));
-        TrustBlock newBlock = new TrustBlock(gdb, gdb.getInstanceId(), gdb.getInstanceFqdn(), signature);
+        JWSObject signature = gdb.signPayloadRaw(node.getHash());
+        TrustBlock newBlock = new TrustBlock(gdb.getInstanceId(), gdb.getInstanceFqdn(), signature);
         return newBlock;
     }
 
@@ -64,15 +63,27 @@ public class TrustBlock {
         }
     }
 
-    public TrustBlock trust() {
-        JWSObject signature = this.gdb.signPayloadRaw(this.getHash());
-        TrustBlock newBlock = new TrustBlock(this.gdb, this.gdb.getInstanceId(), this.gdb.getInstanceFqdn(), signature);
+    public TrustBlock trust(GraphDatabase gdb) {
+        JWSObject signature = gdb.signPayloadRaw(this.getHash());
+        TrustBlock newBlock = new TrustBlock(gdb.getInstanceId(), gdb.getInstanceFqdn(), signature);
         this.trustedBy.add(newBlock);
         return newBlock;
     }
 
     public JWSObject getSignature() {
         return this.signature;
+    }
+
+    public static TrustBlock fromJson(JSONObject trustChain) throws ParseException {
+        JWSObject signature = JWSObject.parse(trustChain.getString("signature"));
+        UUID guarantorId = UUID.fromString(trustChain.getString("guarantor_id"));
+        String guarantorFqdn = trustChain.getString("guarantor_fqdn");
+        TrustBlock trustBlock = new TrustBlock(guarantorId, guarantorFqdn, signature);
+        for (Object tcDefn: trustChain.getJSONArray("trusted_by")) {
+            JSONObject trustChild = (JSONObject) tcDefn;
+            trustBlock.offerPeerTrust(TrustBlock.fromJson(trustChild));
+        }
+        return trustBlock;
     }
 
     public JSONObject toJson() {

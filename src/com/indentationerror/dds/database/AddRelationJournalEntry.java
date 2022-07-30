@@ -26,7 +26,7 @@ public class AddRelationJournalEntry extends JournalEntry {
     }
 
     @Override
-    public void replayOn(GraphDatabase graphDatabase) throws MissingNodeException {
+    public boolean replayOn(GraphDatabase graphDatabase, Node source) throws MissingNodeException {
         Node referrerNode = null;
         if (this.referrerLocalId != null) { // This might be set to null if this is a foreign journal, as they are only allowed to use the less efficient global id
             referrerNode = graphDatabase.getNodeUnsafe(this.referrerLocalId);
@@ -56,5 +56,6 @@ public class AddRelationJournalEntry extends JournalEntry {
                 }
             }
         }
+        return false;
     }
 }
