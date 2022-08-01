@@ -1,5 +1,6 @@
 package com.indentationerror.dds.database;
 
+import java.util.Arrays;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -19,7 +20,7 @@ public class AbsoluteNodePath {
      * @param graphDatabase
      * @return The node if path is exact, else null
      */
-    public Node getNodeFrom(GraphDatabase graphDatabase) {
+    public Node getNodeFrom(GraphDatabase graphDatabase, SecurityContext securityContext) {
         Node tailNode = null;
         int i = 0;
         int pathTraversalLength = pathComponents.length;
@@ -29,7 +30,10 @@ public class AbsoluteNodePath {
             Matcher matcher = pattern.matcher(pathComponents[0]);
             if (matcher.find()) {
                 String uuid = matcher.group();
-                tailNode = graphDatabase.getNodeUnsafe(UUID.fromString(uuid));
+                Node candidateTailNode = graphDatabase.getNodeUnsafe(UUID.fromString(uuid));
+                if (Arrays.asList(securityContext.getDatabase().getPermsOnNode(securityContext.getActor(), candidateTailNode)).contains(AuthorizedAction.READ)) {
+                    tailNode = candidateTailNode;
+                }
             } else {
                 tailNode = null;
             }
@@ -38,7 +42,7 @@ public class AbsoluteNodePath {
             while (i < pathTraversalLength) {
                 if (pathComponents[i].length() > 0) {
                     if (tailNode != null) {
-                        tailNode = tailNode.getPropertyUnsafe(pathComponents[i]);
+                        tailNode = tailNode.getProperty(securityContext, pathComponents[i]);
                     }
                 }
                 i++;

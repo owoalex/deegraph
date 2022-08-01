@@ -2,6 +2,7 @@ package com.indentationerror.dds.conditions;
 
 import com.indentationerror.dds.database.GraphDatabase;
 import com.indentationerror.dds.database.NodePathContext;
+import com.indentationerror.dds.database.SecurityContext;
 
 public class RawValue extends Condition {
     private String literal;
@@ -17,7 +18,7 @@ public class RawValue extends Condition {
     }
 
     @Override
-    public String asLiteral(NodePathContext context) {
+    public String asLiteral(SecurityContext securityContext, NodePathContext context) {
         return this.literal;
     }
 }

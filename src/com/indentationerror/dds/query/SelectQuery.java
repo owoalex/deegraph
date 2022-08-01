@@ -75,7 +75,7 @@ public class SelectQuery extends Query {
         if (condition != null) { // Filter based on condition after, this is potentially a very expensive operation
             ArrayList<Node> newCandidates = new ArrayList<>();
             for (Node candidate : candidateNodes) {
-                if (condition.eval(new NodePathContext(this.actor, candidate))) {
+                if (condition.eval(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, candidate))) {
                     newCandidates.add(candidate);
                 }
             }

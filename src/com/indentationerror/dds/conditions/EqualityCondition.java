@@ -66,14 +66,14 @@ public class EqualityCondition extends Condition {
         return null;
     }
     @Override
-    public boolean eval(NodePathContext context) {
+    public boolean eval(SecurityContext securityContext, NodePathContext nodePathContext) {
         try {
-            String e1 = this.c1.asLiteral(context);
-            String e2 = this.c2.asLiteral(context);
+            String e1 = this.c1.asLiteral(securityContext,nodePathContext);
+            String e2 = this.c2.asLiteral(securityContext,nodePathContext);
 
-            Node requestingNode = context.getActor();
-            if (context.getRequestingNode() != null) {
-                requestingNode = context.getRequestingNode();
+            Node requestingNode = nodePathContext.getActor();
+            if (nodePathContext.getRequestingNode() != null) {
+                requestingNode = nodePathContext.getRequestingNode();
             }
             //System.out.println(e1 + " == " + e2);
 
@@ -96,9 +96,9 @@ public class EqualityCondition extends Condition {
                 if (absolute) {
                     e1 = "/" + e1;
                 }
-                Node e1Node = new RelativeNodePath(e1).toAbsolute(context).getNodeFrom(this.graphDatabase);
+                Node e1Node = new RelativeNodePath(e1).toAbsolute(nodePathContext).getNodeFrom(this.graphDatabase, securityContext);
                 if (e1Node != null) {
-                    rawValue1 = metaProp(e1Node, prop, context, requestingNode);
+                    rawValue1 = metaProp(e1Node, prop, nodePathContext, requestingNode);
                 }
             }
 
@@ -119,9 +119,9 @@ public class EqualityCondition extends Condition {
                 if (absolute) {
                     e2 = "/" + e2;
                 }
-                Node e2Node = new RelativeNodePath(e2).toAbsolute(context).getNodeFrom(this.graphDatabase);
+                Node e2Node = new RelativeNodePath(e2).toAbsolute(nodePathContext).getNodeFrom(this.graphDatabase, securityContext);
                 if (e2Node != null) {
-                    rawValue2 = metaProp(e2Node, prop, context, requestingNode);
+                    rawValue2 = metaProp(e2Node, prop, nodePathContext, requestingNode);
                 }
             }
 

@@ -2,6 +2,7 @@ package com.indentationerror.dds.conditions;
 
 import com.indentationerror.dds.database.GraphDatabase;
 import com.indentationerror.dds.database.NodePathContext;
+import com.indentationerror.dds.database.SecurityContext;
 
 import java.util.LinkedList;
 import java.util.Locale;
@@ -182,18 +183,18 @@ public abstract class Condition {
         return invertSide ? new LogicalNotCondition(graphDatabase, returnCondition) : returnCondition;
     }
 
-    public boolean eval(NodePathContext context) {
+    public boolean eval(SecurityContext securityContext, NodePathContext context) {
         try {
-            if (this.asLiteral(context).toUpperCase(Locale.ROOT).equals("TRUE")) {
+            if (this.asLiteral(securityContext, context).toUpperCase(Locale.ROOT).equals("TRUE")) {
                 return true;
             }
-            return (Integer.valueOf(this.asLiteral(context)) > 0);
+            return (Integer.valueOf(this.asLiteral(securityContext, context)) > 0);
         } catch (NumberFormatException e) {
             return false;
         }
     }
 
-    public String asLiteral(NodePathContext context) {
-        return this.eval(context) ? "TRUE" : "FALSE";
+    public String asLiteral(SecurityContext securityContext, NodePathContext context) {
+        return this.eval(securityContext, context) ? "TRUE" : "FALSE";
     }
 }

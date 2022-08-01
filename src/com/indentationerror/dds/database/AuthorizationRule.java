@@ -30,8 +30,10 @@ public class AuthorizationRule {
         return authorizedActions;
     }
 
-    public Authorization[] getAuthorizations(Node actor, Node object) {
-        if (condition.eval(new NodePathContext(actor, object))) {
+    public Authorization[] getAuthorizations(GraphDatabase graphDatabase, Node actor, Node object) {
+        boolean checkPassed = (graphDatabase.getInstanceNode().equals(actor)); // Bypass for the instance node for performance - this node has all perms!
+        checkPassed = checkPassed | (condition.eval(new SecurityContext(graphDatabase, graphDatabase.getInstanceNode()), new NodePathContext(actor, object))); // All grant conditions are evaluated as the instance node user
+        if (checkPassed) {
             Authorization[] authorizations = new Authorization[authorizedActions.length];
             for (int i = 0; i < authorizedActions.length; i++) {
                 authorizations[i] = new Authorization(this.authorizedActions[i], this);

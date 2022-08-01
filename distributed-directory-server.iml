@@ -10,5 +10,6 @@
     <orderEntry type="library" name="json-20220320" level="project" />
     <orderEntry type="library" name="nimbus-jose-jwt-9.22" level="project" />
     <orderEntry type="library" name="tink-1.6.1" level="project" />
+    <orderEntry type="library" name="junit.jupiter" level="project" />
   </component>
 </module>

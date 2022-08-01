@@ -2,6 +2,7 @@ package com.indentationerror.dds.conditions;
 
 import com.indentationerror.dds.database.GraphDatabase;
 import com.indentationerror.dds.database.NodePathContext;
+import com.indentationerror.dds.database.SecurityContext;
 
 public class LogicalXorCondition extends LogicalCondition {
     private Condition condition1;
@@ -18,7 +19,7 @@ public class LogicalXorCondition extends LogicalCondition {
         return "(" + condition1.toString() + " XOR " + condition2.toString() + ")";
     }
     @Override
-    public boolean eval(NodePathContext context) {
-        return condition1.eval(context) ^ condition2.eval(context);
+    public boolean eval(SecurityContext securityContext, NodePathContext context) {
+        return condition1.eval(securityContext, context) ^ condition2.eval(securityContext, context);
     }
 }

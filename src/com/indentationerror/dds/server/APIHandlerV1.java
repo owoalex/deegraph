@@ -112,7 +112,7 @@ public class APIHandlerV1 implements HttpHandler {
                         case "@resolve_path":
                             bodyContent = URLDecoder.decode(bodyContent.trim(), Charset.defaultCharset()).trim();
                             //System.out.println("pth: " + bodyContent);
-                            tailNode = new RelativeNodePath(bodyContent).toAbsolute(new NodePathContext(userNode, userNode)).getNodeFrom(graphDatabase);
+                            tailNode = new RelativeNodePath(bodyContent).toAbsolute(new NodePathContext(userNode, userNode)).getNodeFrom(graphDatabase, securityContext);
                             outputTailNode = true;
                             break;
                         case "@auth":
@@ -267,7 +267,7 @@ public class APIHandlerV1 implements HttpHandler {
                             break;
                     }
                     String[] reconstruct = Arrays.copyOfRange(requestPath, 0, range);
-                    tailNode = new RelativeNodePath(String.join("/", reconstruct)).toAbsolute(new NodePathContext(userNode, userNode)).getNodeFrom(this.graphDatabase);
+                    tailNode = new RelativeNodePath(String.join("/", reconstruct)).toAbsolute(new NodePathContext(userNode, userNode)).getNodeFrom(this.graphDatabase, securityContext);
                     //System.out.println(String.join("/", reconstruct));
                     //response.put("@request_path", String.join("/", reconstruct));
                 }

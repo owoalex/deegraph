@@ -24,6 +24,8 @@ public class Node {
 
     private HashMap<String, ArrayList<Node>> references;
 
+    private ArrayList<Node> creatorOf;
+
     private TrustBlock trustRoot;
     private GraphDatabase gdb;
 
@@ -33,6 +35,7 @@ public class Node {
         this.oCNode = oCNode;
         this.data = data;
         this.schema = schema;
+        this.creatorOf = new ArrayList<>();
         this.properties = new HashMap<>();
         this.references = new HashMap<>(); // References is like the inverse lookup of properties - the database has to work hard to keep these consistent!
         this.localId = localId;
@@ -49,6 +52,7 @@ public class Node {
         this.oCNode = oCNode;
         this.data = data;
         this.schema = schema;
+        this.creatorOf = new ArrayList<>();
         this.properties = new HashMap<>();
         this.references = new HashMap<>(); // References is like the inverse lookup of properties - the database has to work hard to keep these consistent!
         this.localId = localId;
@@ -91,6 +95,15 @@ public class Node {
         this.cNode = this;
     }
 
+    public Node[] getCreatedNodes(SecurityContext securityContext) {
+        ArrayList<Node> safeNodes = new ArrayList<>();
+        for (Node node: this.creatorOf) {
+            if (Arrays.asList(securityContext.getDatabase().getPermsOnNode(securityContext.getActor(), node)).contains(AuthorizedAction.READ)) {
+                safeNodes.add(node);
+            }
+        }
+        return safeNodes.toArray(new Node[0]);
+    }
     public UUID getId() {
         return localId;
     }

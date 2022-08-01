@@ -1,9 +1,6 @@
 package com.indentationerror.dds.database;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -155,6 +152,18 @@ public class RelativeNodePath extends NodePath {
                         }
                         currentValidParents = new ArrayList<>(); // Special case needed to skip adding the node later
                     }
+                } else if (pathComponents[i].startsWith("@")) { // Meta property - we only allow a few of these in traversals
+                    ArrayList<Node> newValidParents = new ArrayList<>();
+                    switch (pathComponents[i].toLowerCase(Locale.ROOT)) {
+                        case "@creator":
+                            for (Node checkParent : currentValidParents) {
+                                if (checkParent != null) {
+                                    newValidParents.addAll(Arrays.asList(checkParent.getCreatedNodes(securityContext)));
+                                }
+                            }
+                            break;
+                    }
+                    currentValidParents = newValidParents;
                 } else {
                     ArrayList<Node> newValidParents = new ArrayList<>();
                     for (Node checkParent : currentValidParents) {

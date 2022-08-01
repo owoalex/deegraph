@@ -302,6 +302,18 @@ public class GraphDatabase {
     }
 
     public AuthorizedAction[] getPermsOnNode(Node actor, Node object) {
+        if (this.getInstanceNode().equals(actor)) {
+            AuthorizedAction[] rootAuth = new AuthorizedAction[] {AuthorizedAction.ACT, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.DELEGATE, AuthorizedAction.WRITE};
+            return rootAuth; // Root user always has all perms - so we can just exit here without evaluating any rules
+        }
+
+        if (actor == null) { // Obviously if either is null then no permissions can be given
+            return new AuthorizedAction[0];
+        }
+        if (object == null) {
+            return new AuthorizedAction[0];
+        }
+
         ArrayList<AuthorizedAction> authorizedActions = new ArrayList<>();
         ArrayList<Authorization> authorizations = new ArrayList<>();
         ArrayList<AuthorizationRule> rules = new ArrayList<>();
@@ -317,7 +329,7 @@ public class GraphDatabase {
         }
 
         for (AuthorizationRule rule : rules) {
-            authorizations.addAll(Arrays.asList(rule.getAuthorizations(actor, object)));
+            authorizations.addAll(Arrays.asList(rule.getAuthorizations(this, actor, object)));
         }
 
         for (Authorization authorization : authorizations) {
