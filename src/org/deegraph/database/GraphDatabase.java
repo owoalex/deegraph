@@ -304,13 +304,16 @@ public class GraphDatabase {
     public AuthorizedAction[] getPermsOnNode(Node actor, Node object) {
         if (this.getInstanceNode().equals(actor)) {
             AuthorizedAction[] rootAuth = new AuthorizedAction[] {AuthorizedAction.ACT, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.DELEGATE, AuthorizedAction.WRITE};
+            //System.out.println("Perms for ROOT on ANY = *");
             return rootAuth; // Root user always has all perms - so we can just exit here without evaluating any rules
         }
 
         if (actor == null) { // Obviously if either is null then no permissions can be given
+            //System.out.println("Perms for NULL on ANY = []");
             return new AuthorizedAction[0];
         }
         if (object == null) {
+            //System.out.println("Perms for ANY on NULL = []");
             return new AuthorizedAction[0];
         }
 
@@ -330,6 +333,7 @@ public class GraphDatabase {
 
         for (AuthorizationRule rule : rules) {
             authorizations.addAll(Arrays.asList(rule.getAuthorizations(this, actor, object)));
+            //System.out.println(rule.condition.toString());
         }
 
         for (Authorization authorization : authorizations) {
@@ -338,6 +342,12 @@ public class GraphDatabase {
         }
 
         List<AuthorizedAction> uniqueAuthorizedActions = authorizedActions.stream().distinct().collect(Collectors.toList());
+
+        /* String permsStr = "";
+        for (AuthorizedAction authAct: uniqueAuthorizedActions.toArray(new AuthorizedAction[0])) {
+            permsStr = permsStr + ((permsStr.length() == 0) ? "" : ", ") + authAct;
+        }
+        System.out.println("Perms for {" + actor.getId() + "} on {" + object.getId() + "} = [" + permsStr + "]"); */
 
         return uniqueAuthorizedActions.toArray(new AuthorizedAction[0]);
     }

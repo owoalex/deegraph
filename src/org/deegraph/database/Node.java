@@ -161,7 +161,7 @@ public class Node {
             throw new DuplicatePropertyException();
         } else {
             this.properties.put(name, node);
-            System.out.println("Linked " + this.getId() + " ==[ " + name + " ]=> " + node.getId());
+            //System.out.println("Linked " + this.getId() + " ==[ " + name + " ]=> " + node.getId());
             if (!node.references.containsKey(name)) {
                 node.references.put(name, new ArrayList<>());
             }
@@ -174,7 +174,7 @@ public class Node {
             this.removePropertyUnsafe(name);
         }
         this.properties.put(name, node);
-        System.out.println("Linked (forced) " + this.getId() + " ==[ " + name + " ]=> " + node.getId());
+        //System.out.println("Linked (forced) " + this.getId() + " ==[ " + name + " ]=> " + node.getId());
         if (!node.references.containsKey(name)) {
             node.references.put(name, new ArrayList<>());
         }

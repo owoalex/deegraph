@@ -132,9 +132,9 @@ public class JournalSegment {
 
         String body = bodyStringBuilder.toString().trim();
 
-        System.out.println(new JSONObject(props).toString(4));
-        System.out.println("===");
-        System.out.println(body);
+        //System.out.println(new JSONObject(props).toString(4));
+        //System.out.println("===");
+        //System.out.println(body);
 
         UUID sourceInstanceId = UUID.fromString(props.get("origin-id").get(0));
         String sourceInstanceFqdn = props.get("origin-fqdn").get(0);
@@ -227,7 +227,9 @@ public class JournalSegment {
         Node actingNode = this.graphDatabase.getNodeUnsafe(this.originalDatabaseInstanceId);
         for (JournalEntry journalEntry : this.segmentActions) {
             try {
-                valid = valid && journalEntry.replayOn(this.graphDatabase, actingNode);
+                if (!journalEntry.replayOn(this.graphDatabase, actingNode)) {
+                    valid = false;
+                }
             } catch (MissingNodeException e) {
                 if (!faultTolerant) {
                     throw new RuntimeException(e);

@@ -5,11 +5,14 @@ import org.deegraph.query.*;
 import org.json.JSONObject;
 
 import java.text.ParseException;
+import java.util.Date;
 import java.util.UUID;
 
 public class QueryJournalEntry extends JournalEntry {
     private String query;
     private UUID actor;
+
+    private Date timestamp;
 
     public QueryJournalEntry(String query, Node actor) {
         this(query, actor.getId());
@@ -18,6 +21,7 @@ public class QueryJournalEntry extends JournalEntry {
     public QueryJournalEntry(String query, UUID actor) {
         this.actor = actor;
         this.query = query;
+        this.timestamp = new Date();
     }
 
     public UUID getActor() {
@@ -34,17 +38,21 @@ public class QueryJournalEntry extends JournalEntry {
         out.put("type", "QUERY");
         out.put("actor_id", this.actor);
         out.put("query", this.query);
+        out.put("timestamp", JournalEntry.formatDate(this.timestamp));
         return out;
     }
 
     public static JournalEntry fromJson(JSONObject input) {
         UUID actor = UUID.fromString(input.getString("actor_id"));
         String query = input.getString("query");
-        return new QueryJournalEntry(query, actor);
+        QueryJournalEntry qje = new QueryJournalEntry(query, actor);
+        qje.timestamp = JournalEntry.fromFormattedDate(input.getString("timestamp"));
+        return qje;
     }
     @Override
     public boolean replayOn(GraphDatabase graphDatabase, Node source) throws ParseException {
         Query q = Query.fromString(this.query, graphDatabase.getNodeUnsafe(this.actor));
+        //System.out.println("Replaying query \"" + this.query.trim() + "\"");
         try {
             switch (q.getQueryType()) {
                 case GRANT:

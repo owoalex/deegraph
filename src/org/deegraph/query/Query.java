@@ -133,7 +133,6 @@ public class Query {
             case "INSERT":
                 this.queryType = QueryType.INSERT;
                 break;
-            case "RM":
             case "DEL":
             case "DELETE":
                 this.queryType = QueryType.DELETE;
@@ -173,7 +172,6 @@ public class Query {
                 //
             case "INSERT":
                 //
-            case "RM":
             case "DEL":
             case "DELETE":
                 return new DeleteQuery(query, actor);

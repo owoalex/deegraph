@@ -76,7 +76,7 @@ public class APIHandlerV1 implements HttpHandler {
         try {
             String authMethod = httpsExchange.getRequestHeaders().getFirst("Authorization");
             String loginNodeId = httpsExchange.getRequestHeaders().getFirst("X-Auxilium-Actor");
-            Node userNode = (loginNodeId == null) ? null : this.graphDatabase.getNodeUnsafe(UUID.fromString(loginNodeId)); // Do everything from the root node for now
+            Node userNode = (loginNodeId == null) ? null : this.graphDatabase.getNodeUnsafe(UUID.fromString(loginNodeId));
             SecurityContext securityContext = null;
 
             if (authMethod != null && authMethod.startsWith("Bearer ")) {
@@ -135,6 +135,8 @@ public class APIHandlerV1 implements HttpHandler {
                                 Query query = Query.fromString(queryText, userNode);
 
                                 //System.out.println(query.getQueryType());
+
+                                System.out.println("QUERY \"" + queryText.trim() + "\" AS " + ((userNode == null) ? "Nothing" : userNode.getId()));
 
                                 switch (query.getQueryType()) {
                                     case GRANT: {
