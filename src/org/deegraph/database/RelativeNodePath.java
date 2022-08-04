@@ -93,6 +93,7 @@ public class RelativeNodePath extends NodePath {
             pathComponents[0] = "{" + objectId + "}";
         } else {
             if (!(pathComponents[0].startsWith("{") && pathComponents[0].endsWith("}"))) { // Oh no, we're still not starting with a literal yet
+                /* // Old way, kind of works how user expects but is less consistent - consistency is key!
                 if (pathComponents[0].equals("*")) {
                     if (pathComponents.length == 1) { // Special case for ONLY the global operator - this can be used quite a few times in a single query, and should return quickly
                         //return searchSpace;
@@ -103,9 +104,27 @@ public class RelativeNodePath extends NodePath {
                             }
                         }
                         return hmo;
-                    } else { // Otherwise we're fine - we know how to deal with this, this just means it can be the child of anything
-                        //pathComponents = Arrays.copyOfRange(pathComponents, 1, pathComponents.length); // Pop the aterisk off the start, it's not relevant
                     }
+                } else { // Looks like this is an implicit contextual path, let'f fill in this for the user
+                    String[] newArray = Arrays.copyOf(pathComponents, pathComponents.length + 1);
+                    newArray[0] = "{" + objectId + "}";
+                    System.arraycopy(pathComponents, 0, newArray, 1, pathComponents.length);
+                    pathComponents = newArray;
+                }*/
+
+                if (pathComponents[0].equals("**")) {
+                    if (pathComponents.length == 1) { // Special case for ONLY the super global operator - this can be used quite a few times in a single query, and should return quickly
+                        //return searchSpace;
+                        HashMap<AbsoluteNodePath, Node> hmo = new HashMap<>();
+                        for (Node n: searchSpace) {
+                            if (n != null) {
+                                hmo.put(new AbsoluteNodePath("{" + n.getId() + "}"), n);
+                            }
+                        }
+                        return hmo;
+                    }// else { // Otherwise, we just match basically anything
+                    //    pathComponents = Arrays.copyOfRange(pathComponents, 1, pathComponents.length); // We do this by popping this operator off
+                    //}
                 } else { // Looks like this is an implicit contextual path, let'f fill in this for the user
                     String[] newArray = Arrays.copyOf(pathComponents, pathComponents.length + 1);
                     newArray[0] = "{" + objectId + "}";
@@ -143,6 +162,13 @@ public class RelativeNodePath extends NodePath {
                                 }
                             }
                         }
+                    }
+                    currentValidParents = newValidParents;
+                } else if (pathComponents[i].equals("**")) {
+                    ArrayList<Tuple<String, Node>> newValidParents = new ArrayList<>();
+                    for (Tuple<String, Node> checkParent : currentValidParents) {
+                        String tail = ((checkParent.x.length() > 0) ? ("/" + checkParent.x) : "");
+                        newValidParents.add(new Tuple<>( "{" + checkParent.y.getId() + "}" + tail, checkParent.y));
                     }
                     currentValidParents = newValidParents;
                 } else if (pathComponents[i].startsWith("{") && pathComponents[i].endsWith("}")) {
