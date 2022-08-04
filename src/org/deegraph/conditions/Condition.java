@@ -82,8 +82,16 @@ public abstract class Condition {
                         returnCondition = new EqualityCondition(graphDatabase, leftCondition, returnCondition);
                         operator = null;
                         break;
+                    case "===":
+                        returnCondition = new IdentityCondition(graphDatabase, leftCondition, returnCondition);
+                        operator = null;
+                        break;
                     case "!=":
                         returnCondition = new LogicalNotCondition(graphDatabase, new EqualityCondition(graphDatabase, leftCondition, returnCondition));
+                        operator = null;
+                        break;
+                    case "!==":
+                        returnCondition = new LogicalNotCondition(graphDatabase, new IdentityCondition(graphDatabase, leftCondition, returnCondition));
                         operator = null;
                         break;
                 }
@@ -109,8 +117,12 @@ public abstract class Condition {
                 switch (currentOperator) {
                     case "==":
                     case "EQUALS":
+                    case "===":
+                    case "IS":
                     case "!=":
                     case "DIFFERENT":
+                    case "!==":
+                    case "ISNT":
                         sideComponents.removeLast(); // Get rid of the operator from the components
                         leftCondition = returnCondition;
                         break;
@@ -147,9 +159,17 @@ public abstract class Condition {
                     case "EQUALS":
                         operator = "==";
                         break;
+                    case "===":
+                    case "IS":
+                        operator = "===";
+                        break;
                     case "!=":
                     case "DIFFERENT":
                         operator = "!=";
+                        break;
+                    case "!==":
+                    case "ISNT":
+                        operator = "!==";
                         break;
                     case "&&":
                     case "AND":

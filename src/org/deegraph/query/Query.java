@@ -206,9 +206,20 @@ public class Query {
                     bracketLevel--;
                     break;
                 case "==":
+                case "EQUALS":
+                case "===":
+                case "IS":
                 case "!=":
+                case "DIFFERENT":
+                case "!==":
+                case "ISNT":
+                case "&&":
                 case "AND":
+                case "||":
                 case "OR":
+                case "^|":
+                case "XOR":
+                case "!":
                 case "NOT":
                     allowLiteral = true;
                     break;

@@ -1,6 +1,7 @@
 package org.deegraph.database;
 
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -42,13 +43,33 @@ public class AbsoluteNodePath {
             while (i < pathTraversalLength) {
                 if (pathComponents[i].length() > 0) {
                     if (tailNode != null) {
-                        tailNode = tailNode.getProperty(securityContext, pathComponents[i]);
+                        if (pathComponents[i].startsWith("@")) {
+                            switch (pathComponents[i].toLowerCase(Locale.ROOT)) {
+                                case "@creator":
+                                    tailNode = tailNode.getCNode();
+                                    break;
+                            }
+                        } else {
+                            tailNode = tailNode.getProperty(securityContext, pathComponents[i]);
+                        }
                     }
                 }
                 i++;
             }
         }
         return tailNode;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof AbsoluteNodePath)) return false;
+        return Arrays.equals(pathComponents, ((AbsoluteNodePath) o).pathComponents);
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.hashCode(pathComponents);
     }
 
     @Override

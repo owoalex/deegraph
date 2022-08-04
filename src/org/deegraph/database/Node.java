@@ -42,6 +42,9 @@ public class Node {
         this.originalId = originalId;
         this.originalInstanceId = originalInstanceId;
         this.cNode = cNode;
+        if (cNode != null) {
+            cNode.unsafeCreditWithCreationOf(this);
+        }
         this.gdb = gdb;
         this.trustRoot = TrustBlock.createRoot(this, gdb);
     }
@@ -59,6 +62,9 @@ public class Node {
         this.originalId = originalId;
         this.originalInstanceId = originalInstanceId;
         this.cNode = cNode;
+        if (cNode != null) {
+            cNode.unsafeCreditWithCreationOf(this);
+        }
         this.gdb = gdb;
         this.trustRoot = trustRoot;
     }
@@ -93,6 +99,7 @@ public class Node {
     void makeSelfReferential() {
         this.oCNode = this.localId;
         this.cNode = this;
+        this.unsafeCreditWithCreationOf(this);
     }
 
     public Node[] getCreatedNodes(SecurityContext securityContext) {
@@ -104,6 +111,11 @@ public class Node {
         }
         return safeNodes.toArray(new Node[0]);
     }
+
+    public void unsafeCreditWithCreationOf(Node node) {
+        this.creatorOf.add(node);
+    }
+
     public UUID getId() {
         return localId;
     }

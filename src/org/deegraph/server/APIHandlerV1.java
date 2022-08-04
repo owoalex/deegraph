@@ -151,18 +151,19 @@ public class APIHandlerV1 implements HttpHandler {
                                         break;
                                     }
                                     case SELECT: {
-                                        List<Map<String, Node[]>> results = ((SelectQuery) query).runSelectQuery(this.graphDatabase);
+                                        List<Map<String, Map<AbsoluteNodePath, Node>>> results = ((SelectQuery) query).runSelectQuery(this.graphDatabase);
                                         JSONArray outputArray = new JSONArray();
-                                        for (Map<String, Node[]> result : results) {
+                                        for (Map<String, Map<AbsoluteNodePath, Node>> result : results) {
                                             JSONObject outNode = new JSONObject();
                                             for (String key : result.keySet()) {
                                                 boolean atLeastOneValue = false;
-                                                JSONArray nodeList = new JSONArray();
-                                                for (Node node : result.get(key)) {
+                                                JSONObject nodeList = new JSONObject();
+                                                for (AbsoluteNodePath absoluteNodePath : result.get(key).keySet()) {
+                                                    Node node = result.get(key).get(absoluteNodePath);
                                                     if (node != null) {
                                                         JSONObject nodeJsonRepr = nodeToJson(securityContext, node);
                                                         if (nodeJsonRepr != null) {
-                                                            nodeList.put(nodeJsonRepr);
+                                                            nodeList.put(absoluteNodePath.toString(), nodeJsonRepr);
                                                             atLeastOneValue = true;
                                                         }
                                                     }

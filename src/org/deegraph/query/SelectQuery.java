@@ -11,7 +11,7 @@ public class SelectQuery extends Query {
         super(src, actor);
     }
 
-    public List<Map<String, Node[]>> runSelectQuery(GraphDatabase graphDatabase) throws ParseException, NoSuchMethodException {
+    public List<Map<String, Map<AbsoluteNodePath, Node>>> runSelectQuery(GraphDatabase graphDatabase) throws ParseException, NoSuchMethodException {
         if (this.queryType != QueryType.SELECT) {
             throw new NoSuchMethodException();
         }
@@ -58,6 +58,8 @@ public class SelectQuery extends Query {
             }
         }
 
+        ArrayList<Map<String, Map<AbsoluteNodePath, Node>>> outputMaps = new ArrayList<>();
+
         if (schemaLimit != null) { // Filter by INSTANCEOF first, as it's quite a cheap operation
             if (schemaLimit.startsWith("\"") && schemaLimit.endsWith("\"")) {
                 schemaLimit = schemaLimit.substring(1, schemaLimit.length() - 1);
@@ -71,7 +73,16 @@ public class SelectQuery extends Query {
             candidateNodes = newCandidates;
         }
 
-        if (condition != null) { // Filter based on condition after, this is potentially a very expensive operation
+        if (condition == null) { // If no where condition, treat this as the user trying to select just a path
+            Map<String, Map<AbsoluteNodePath, Node>> resultRepresentation = new HashMap<>();
+            for (String property : requestedProperties) {
+                Map<AbsoluteNodePath, Node> matches = new RelativeNodePath(property).getMatchingNodeMap(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, this.actor), candidateNodes.toArray(new Node[0]));
+                resultRepresentation.put(property, matches);
+            }
+            outputMaps.add(resultRepresentation);
+
+            return outputMaps;
+        } else { // Filter based on condition after, this is potentially a very expensive operation
             ArrayList<Node> newCandidates = new ArrayList<>();
             for (Node candidate : candidateNodes) {
                 if (condition.eval(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, candidate))) {
@@ -81,11 +92,10 @@ public class SelectQuery extends Query {
             candidateNodes = newCandidates;
         }
 
-        ArrayList<Map<String, Node[]>> outputMaps = new ArrayList<>();
         for (Node candidate : candidateNodes) { // Expand the output to provide every node
-            HashMap<String, Node[]> resultRepresentation = new HashMap<>();
+            Map<String, Map<AbsoluteNodePath, Node>> resultRepresentation = new HashMap<>();
             for (String property : requestedProperties) {
-                Node[] matches = new RelativeNodePath(property).getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, candidate), graphDatabase.getAllNodesUnsafe());
+                Map<AbsoluteNodePath, Node> matches = new RelativeNodePath(property).getMatchingNodeMap(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, candidate), graphDatabase.getAllNodesUnsafe());
                 resultRepresentation.put(property, matches);
             }
             outputMaps.add(resultRepresentation);
