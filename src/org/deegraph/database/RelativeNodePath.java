@@ -149,7 +149,7 @@ public class RelativeNodePath extends NodePath {
                         String tail = ((checkParent.x.length() > 0) ? ("/" + checkParent.x) : "");
                         for (String key : checkParent.y.getAllReferrersUnsafe().keySet()) {
                             if (pathComponents[i].equals("#")) {
-                                if (key.matches("[0-9].*")) { // Numerical keys only!
+                                if (key.matches("[0-9]+")) { // Numerical keys only!
                                     Node[] parentNodes = checkParent.y.getReferrers(securityContext, key);
                                     for (Node parentNode: parentNodes) {
                                         newValidParents.add(new Tuple<>( key + tail, parentNode));

@@ -80,8 +80,10 @@ public class GrantQuery extends Query {
                 }
                 graphDatabase.registerRule(rule, this.actor.getId().toString());
             }
+            return rule.getUuid();
+        } else {
+            return null;
         }
-        return rule.getUuid();
 
         //condition.eval(new NodePathContext(this.actor, object));
     }

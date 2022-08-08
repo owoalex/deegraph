@@ -169,7 +169,7 @@ public class Query {
             case "PERMISSIONS":
                 return new PermissionsQuery(query, actor);
             case "CONSTRUCT":
-                //
+                return new ConstructQuery(query, actor);
             case "INSERT":
                 //
             case "DEL":

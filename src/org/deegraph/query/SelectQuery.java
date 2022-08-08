@@ -11,7 +11,7 @@ public class SelectQuery extends Query {
         super(src, actor);
     }
 
-    public List<Map<String, Map<AbsoluteNodePath, Node>>> runSelectQuery(GraphDatabase graphDatabase) throws ParseException, NoSuchMethodException {
+    public Map<UUID, Map<String, Map<AbsoluteNodePath, Node>>> runSelectQuery(GraphDatabase graphDatabase) throws ParseException, NoSuchMethodException {
         if (this.queryType != QueryType.SELECT) {
             throw new NoSuchMethodException();
         }
@@ -30,18 +30,13 @@ public class SelectQuery extends Query {
         }
         Condition condition = null;
         String schemaLimit = null;
-        ArrayList<Node> candidateNodes = new ArrayList<>(Arrays.asList(graphDatabase.getAllNodesUnsafe()));
+        String fromLimit = null;
+        ArrayList<Node> candidateNodes = null;
         escape = (current == null);
         while (!escape) {
             switch (current.toUpperCase(Locale.ROOT)) {
                 case "FROM":
-                    String fromStrPath = parsedQuery.poll();
-                    RelativeNodePath fromRelPath = new RelativeNodePath(fromStrPath);
-                    if (fromRelPath != null) {
-                        candidateNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodesUnsafe())));
-                    } else {
-                        throw new RuntimeException("Error parsing '" + fromStrPath + "' as path") ;
-                    }
+                    fromLimit = parsedQuery.poll();
                     break;
                 case "INSTANCEOF":
                     schemaLimit = parsedQuery.poll();
@@ -58,7 +53,19 @@ public class SelectQuery extends Query {
             }
         }
 
-        ArrayList<Map<String, Map<AbsoluteNodePath, Node>>> outputMaps = new ArrayList<>();
+        Map<UUID, Map<String, Map<AbsoluteNodePath, Node>>> outputMaps = new HashMap<>();
+
+        if (fromLimit == null) {
+            candidateNodes = new ArrayList<>();
+            candidateNodes.add(this.actor);
+        } else {
+            RelativeNodePath fromRelPath = new RelativeNodePath(fromLimit);
+            if (fromRelPath != null) {
+                candidateNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodesUnsafe())));
+            } else {
+                throw new RuntimeException("Error parsing '" + fromLimit + "' as path") ;
+            }
+        }
 
         if (schemaLimit != null) { // Filter by INSTANCEOF first, as it's quite a cheap operation
             if (schemaLimit.startsWith("\"") && schemaLimit.endsWith("\"")) {
@@ -73,16 +80,7 @@ public class SelectQuery extends Query {
             candidateNodes = newCandidates;
         }
 
-        if (condition == null) { // If no where condition, treat this as the user trying to select just a path
-            Map<String, Map<AbsoluteNodePath, Node>> resultRepresentation = new HashMap<>();
-            for (String property : requestedProperties) {
-                Map<AbsoluteNodePath, Node> matches = new RelativeNodePath(property).getMatchingNodeMap(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, this.actor), candidateNodes.toArray(new Node[0]));
-                resultRepresentation.put(property, matches);
-            }
-            outputMaps.add(resultRepresentation);
-
-            return outputMaps;
-        } else { // Filter based on condition after, this is potentially a very expensive operation
+        if (condition != null) {
             ArrayList<Node> newCandidates = new ArrayList<>();
             for (Node candidate : candidateNodes) {
                 if (condition.eval(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, candidate))) {
@@ -98,7 +96,7 @@ public class SelectQuery extends Query {
                 Map<AbsoluteNodePath, Node> matches = new RelativeNodePath(property).getMatchingNodeMap(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, candidate), graphDatabase.getAllNodesUnsafe());
                 resultRepresentation.put(property, matches);
             }
-            outputMaps.add(resultRepresentation);
+            outputMaps.put(candidate.getId(), resultRepresentation);
         }
         return outputMaps;
     }

@@ -151,9 +151,10 @@ public class APIHandlerV1 implements HttpHandler {
                                         break;
                                     }
                                     case SELECT: {
-                                        List<Map<String, Map<AbsoluteNodePath, Node>>> results = ((SelectQuery) query).runSelectQuery(this.graphDatabase);
-                                        JSONArray outputArray = new JSONArray();
-                                        for (Map<String, Map<AbsoluteNodePath, Node>> result : results) {
+                                        Map<UUID, Map<String, Map<AbsoluteNodePath, Node>>> results = ((SelectQuery) query).runSelectQuery(this.graphDatabase);
+                                        JSONObject outputMap = new JSONObject();
+                                        for (UUID rowId : results.keySet()) {
+                                            Map<String, Map<AbsoluteNodePath, Node>> result = results.get(rowId);
                                             JSONObject outNode = new JSONObject();
                                             for (String key : result.keySet()) {
                                                 boolean atLeastOneValue = false;
@@ -173,10 +174,10 @@ public class APIHandlerV1 implements HttpHandler {
                                                 }
                                             }
                                             if (outNode.keySet().size() != 0) { // It's not very useful to add an empty output
-                                                outputArray.put(outNode);
+                                                outputMap.put(rowId.toString(), outNode);
                                             }
                                         }
-                                        response.put("@rows", outputArray);
+                                        response.put("@rows", outputMap);
                                         break;
                                     }
                                     case LINK: {
@@ -209,6 +210,12 @@ public class APIHandlerV1 implements HttpHandler {
                                     case PERMISSIONS: {
                                         AuthorizedAction[] listMap = ((PermissionsQuery) query).runPermissionsQuery(this.graphDatabase);
                                         response.put("@permissions", listMap);
+                                        break;
+                                    }
+                                    case CONSTRUCT: {
+                                        Node newNode = ((ConstructQuery) query).runConstructQuery(this.graphDatabase);
+                                        JSONObject nodeJsonRepr = nodeToJson(securityContext, newNode);
+                                        response.put("@node", nodeJsonRepr);
                                         break;
                                     }
                                     case DELETE: {

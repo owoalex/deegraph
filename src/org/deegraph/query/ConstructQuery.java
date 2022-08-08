@@ -12,7 +12,7 @@ public class ConstructQuery extends Query {
         super(src, actor);
     }
 
-    public boolean runConstructQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException {
+    public Node runConstructQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException {
         if (this.queryType != QueryType.CONSTRUCT) {
             throw new NoSuchMethodException();
         }
@@ -26,9 +26,15 @@ public class ConstructQuery extends Query {
                 case "URI":
                 case "URL":
                     data = parsedQuery.poll();
+                    if (data.startsWith("\"") && data.endsWith("\"")) {
+                        data = data.substring(1, data.length() - 1);
+                    }
                     break;
                 case "SCHEMA":
                     schema = parsedQuery.poll();
+                    if (schema.startsWith("\"") && schema.endsWith("\"")) {
+                        schema = schema.substring(1, schema.length() - 1);
+                    }
                     break;
                 default:
                     throw new QueryException(QueryExceptionCode.INVALID_CONTROL_WORD, "'" + current + "' is not a valid control word");
@@ -40,8 +46,8 @@ public class ConstructQuery extends Query {
         }
 
         Node newNode = graphDatabase.newNode(data, this.actor, schema);
-        System.out.println(newNode.getCNode().getId());
+        //System.out.println(newNode.getCNode().getId());
 
-        return true;
+        return newNode;
     }
 }
