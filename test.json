@@ -1,9 +1,9 @@
 {
     "fqdn": "hiroko.indentationerror.com",
-    "data_directory": "/home/alex/Git/distributed-directory-server/testdata/",
+    "data_directory": "/home/alex/Git/deegraph/testdata/",
     "ssl_certs": {
-        "private_key": "/home/alex/Git/distributed-directory-server/certs/privkey.pem",
-        "full_chain": "/home/alex/Git/distributed-directory-server/certs/fullchain.pem"
+        "private_key": "/home/alex/Git/deegraph/certs/privkey.pem",
+        "full_chain": "/home/alex/Git/deegraph/certs/fullchain.pem"
     },
     "port": 8089,
     "root_auth_tokens": ["g4+NWVviJ8RcEigpwmeVnYdo0lrhuV9rKX+Kfh/9OL2PEDfckQON0ASEW/7nSS03"],
