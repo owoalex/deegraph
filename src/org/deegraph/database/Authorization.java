@@ -44,7 +44,7 @@ public class Authorization {
         for (RelativeNodePath rnp: this.validFor) {
             Node[] validMatches = rnp.getMatchingNodes(new SecurityContext(this.gdb, this.gdb.getInstanceNode()), new NodePathContext(this.actor, this.validFrom), new Node[] {node});
             if (validMatches.length > 0) {
-                System.out.println(rnp + " == " + node.getId() + " ✔️");
+                //System.out.println(rnp + " == " + node.getId() + " ✔️");
                 return true;
             }
         }

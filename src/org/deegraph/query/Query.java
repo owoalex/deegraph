@@ -171,7 +171,7 @@ public class Query {
             case "CONSTRUCT":
                 return new ConstructQuery(query, actor);
             case "INSERT":
-                //
+                return new InsertQuery(query, actor);
             case "DEL":
             case "DELETE":
                 return new DeleteQuery(query, actor);

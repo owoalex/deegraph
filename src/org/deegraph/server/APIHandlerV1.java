@@ -218,6 +218,16 @@ public class APIHandlerV1 implements HttpHandler {
                                         response.put("@node", nodeJsonRepr);
                                         break;
                                     }
+                                    case INSERT: {
+                                        Node[] newNodes = ((InsertQuery) query).runInsertQuery(this.graphDatabase);
+                                        JSONArray nodeList = new JSONArray();
+                                        for (Node newNode: newNodes) {
+                                            JSONObject nodeJsonRepr = nodeToJson(securityContext, newNode);
+                                            nodeList.put(nodeJsonRepr);
+                                        }
+                                        response.put("@nodes", nodeList);
+                                        break;
+                                    }
                                     case DELETE: {
                                         //System.out.println("DELETE QUERY = " + query.toString());
                                         if (((DeleteQuery) query).runDeleteQuery(this.graphDatabase)) {
