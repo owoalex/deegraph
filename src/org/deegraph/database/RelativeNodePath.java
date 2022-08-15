@@ -2,6 +2,7 @@ package org.deegraph.database;
 
 import org.deegraph.formats.Tuple;
 
+import java.text.ParseException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -116,6 +117,9 @@ public class RelativeNodePath extends NodePath {
                     if (pathComponents.length == 1) { // Special case for ONLY the super global operator - this can be used quite a few times in a single query, and should return quickly
                         //return searchSpace;
                         HashMap<AbsoluteNodePath, Node> hmo = new HashMap<>();
+                        if (searchSpace == null) {
+                            searchSpace = securityContext.getDatabase().getAllVisibleNodes(securityContext.getActor());
+                        }
                         for (Node n: searchSpace) {
                             if (n != null) {
                                 hmo.put(new AbsoluteNodePath("{" + n.getId() + "}"), n);
@@ -125,7 +129,7 @@ public class RelativeNodePath extends NodePath {
                     }// else { // Otherwise, we just match basically anything
                     //    pathComponents = Arrays.copyOfRange(pathComponents, 1, pathComponents.length); // We do this by popping this operator off
                     //}
-                } else { // Looks like this is an implicit contextual path, let'f fill in this for the user
+                } else { // Looks like this is an implicit contextual path, let's fill in this for the user
                     String[] newArray = Arrays.copyOf(pathComponents, pathComponents.length + 1);
                     newArray[0] = "{" + objectId + "}";
                     System.arraycopy(pathComponents, 0, newArray, 1, pathComponents.length);
@@ -134,107 +138,167 @@ public class RelativeNodePath extends NodePath {
             }
         }
 
-        //System.out.println("EXPPATH: " + String.join("/", pathComponents));
+        if (pathComponents[0].equals("**")) {
 
-        //ArrayList<Node> output = new ArrayList<>();
-        HashMap<AbsoluteNodePath, Node> hmo = new HashMap<>();
+            //System.out.println("EXPPATH: " + String.join("/", pathComponents));
 
-        for (Node node : searchSpace) {
-            List<Tuple<String, Node>> currentValidParents = new ArrayList<>();
-            currentValidParents.add(new Tuple<>("", node));
-            for (int i = pathComponents.length - 1; i >= 0; i--) { // We'll traverse backwards to see if things make sense - there must be at least one valid parent
-                if (pathComponents[i].equals("*") || pathComponents[i].equals("#")) {
-                    ArrayList<Tuple<String, Node>> newValidParents = new ArrayList<>();
-                    for (Tuple<String, Node> checkParent : currentValidParents) {
-                        String tail = ((checkParent.x.length() > 0) ? ("/" + checkParent.x) : "");
-                        for (String key : checkParent.y.getAllReferrersUnsafe().keySet()) {
-                            if (pathComponents[i].equals("#")) {
-                                if (key.matches("[0-9]+")) { // Numerical keys only!
-                                    Node[] parentNodes = checkParent.y.getReferrers(securityContext, key);
-                                    for (Node parentNode: parentNodes) {
-                                        newValidParents.add(new Tuple<>( key + tail, parentNode));
-                                    }
-                                }
-                            } else {
-                                Node[] parentNodes = checkParent.y.getReferrers(securityContext, key);
-                                for (Node parentNode: parentNodes) {
-                                    newValidParents.add(new Tuple<>( key + tail, parentNode));
-                                }
-                            }
-                        }
-                    }
-                    currentValidParents = newValidParents;
-                } else if (pathComponents[i].equals("**")) {
-                    ArrayList<Tuple<String, Node>> newValidParents = new ArrayList<>();
-                    for (Tuple<String, Node> checkParent : currentValidParents) {
-                        String tail = ((checkParent.x.length() > 0) ? ("/" + checkParent.x) : "");
-                        newValidParents.add(new Tuple<>( "{" + checkParent.y.getId() + "}" + tail, checkParent.y));
-                    }
-                    currentValidParents = newValidParents;
-                } else if (pathComponents[i].startsWith("{") && pathComponents[i].endsWith("}")) {
-                    Pattern pattern = Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", Pattern.CASE_INSENSITIVE);
-                    Matcher matcher = pattern.matcher(pathComponents[i]);
-                    if (matcher.find()) {
-                        UUID uuid = UUID.fromString(matcher.group());
-                        /*
-                        ArrayList<Node> newValidParents = new ArrayList<>();
-                        for (Node checkParent : currentValidParents) {
-                            for (String key : checkParent.getAllReferrers().keySet()) {
-                                for (Node referrer : checkParent.getReferrers(key)) {
-                                    if (referrer.getId().equals(uuid)) {
-                                        newValidParents.add(referrer);
-                                    }
-                                }
-                            }
-                        }*/
+            //ArrayList<Node> output = new ArrayList<>();
+            HashMap<AbsoluteNodePath, Node> hmo = new HashMap<>();
+
+            if (searchSpace == null) {
+                searchSpace = securityContext.getDatabase().getAllVisibleNodes(securityContext.getActor());
+            }
+            for (Node node : searchSpace) {
+                List<Tuple<String, Node>> currentValidParents = new ArrayList<>();
+                currentValidParents.add(new Tuple<>("", node));
+                for (int i = pathComponents.length - 1; i >= 0; i--) { // We'll traverse backwards to see if things make sense - there must be at least one valid parent
+                    if (pathComponents[i].equals("*") || pathComponents[i].equals("#")) {
+                        ArrayList<Tuple<String, Node>> newValidParents = new ArrayList<>();
                         for (Tuple<String, Node> checkParent : currentValidParents) {
-                            if (checkParent.y.getId().equals(uuid)) {
-                                hmo.put(new AbsoluteNodePath("{" + checkParent.y.getId() + "}" + ((checkParent.x.length() > 0) ? ("/" + checkParent.x) : "")), node);
-                                //output.add(node); // This node is definitely valid, we've hit a parent with a defined uuid, we can stop looping through parents as anything above is irrelevant
-                                i = 0; // Exit out of the for loop for this node
-                            }
-                        }
-                        currentValidParents = new ArrayList<>(); // Special case needed to skip adding the node later
-                    }
-                } else if (pathComponents[i].startsWith("@")) { // Meta property - we only allow a few of these in traversals
-                    ArrayList<Tuple<String, Node>> newValidParents = new ArrayList<>();
-                    switch (pathComponents[i].toLowerCase(Locale.ROOT)) {
-                        case "@creator":
-                            for (Tuple<String, Node> checkParent: currentValidParents) {
-                                if (checkParent.y != null) {
-                                    Node[] parentNodes = checkParent.y.getCreatedNodes(securityContext);
-                                    System.out.println("Created " + parentNodes.length + " nodes");
-                                    for (Node parentNode: parentNodes) {
-                                        newValidParents.add(new Tuple<>( "@creator" + ((checkParent.x.length() > 0) ? ("/" + checkParent.x) : ""), parentNode));
+                            String tail = ((checkParent.x.length() > 0) ? ("/" + checkParent.x) : "");
+                            for (String key : checkParent.y.getAllReferrersUnsafe().keySet()) {
+                                if (pathComponents[i].equals("#")) {
+                                    if (key.matches("[0-9]+")) { // Numerical keys only!
+                                        Node[] parentNodes = checkParent.y.getReferrers(securityContext, key);
+                                        for (Node parentNode : parentNodes) {
+                                            newValidParents.add(new Tuple<>(key + tail, parentNode));
+                                        }
+                                    }
+                                } else {
+                                    Node[] parentNodes = checkParent.y.getReferrers(securityContext, key);
+                                    for (Node parentNode : parentNodes) {
+                                        newValidParents.add(new Tuple<>(key + tail, parentNode));
                                     }
                                 }
                             }
-                            break;
-                    }
-                    currentValidParents = newValidParents;
-                } else {
-                    ArrayList<Tuple<String, Node>> newValidParents = new ArrayList<>();
-                    for (Tuple<String, Node> checkParent : currentValidParents) {
-                        if (checkParent.y != null) {
-                            Node[] parentNodes = checkParent.y.getReferrers(securityContext, pathComponents[i]);
-                            for (Node parentNode: parentNodes) {
-                                newValidParents.add(new Tuple<>( pathComponents[i] + ((checkParent.x.length() > 0) ? ("/" + checkParent.x) : ""), parentNode));
+                        }
+                        currentValidParents = newValidParents;
+                    } else if (pathComponents[i].equals("**")) {
+                        ArrayList<Tuple<String, Node>> newValidParents = new ArrayList<>();
+                        for (Tuple<String, Node> checkParent : currentValidParents) {
+                            String tail = ((checkParent.x.length() > 0) ? ("/" + checkParent.x) : "");
+                            newValidParents.add(new Tuple<>("{" + checkParent.y.getId() + "}" + tail, checkParent.y));
+                        }
+                        currentValidParents = newValidParents;
+                    } else if (pathComponents[i].startsWith("{") && pathComponents[i].endsWith("}")) {
+                        Pattern pattern = Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", Pattern.CASE_INSENSITIVE);
+                        Matcher matcher = pattern.matcher(pathComponents[i]);
+                        if (matcher.find()) {
+                            UUID uuid = UUID.fromString(matcher.group());
+                            for (Tuple<String, Node> checkParent : currentValidParents) {
+                                if (checkParent.y.getId().equals(uuid)) {
+                                    hmo.put(new AbsoluteNodePath("{" + checkParent.y.getId() + "}" + ((checkParent.x.length() > 0) ? ("/" + checkParent.x) : "")), node);
+                                    //output.add(node); // This node is definitely valid, we've hit a parent with a defined uuid, we can stop looping through parents as anything above is irrelevant
+                                    i = 0; // Exit out of the for loop for this node
+                                }
+                            }
+                            currentValidParents = new ArrayList<>(); // Special case needed to skip adding the node later
+                        }
+                    } else if (pathComponents[i].startsWith("@")) { // Meta property - we only allow a few of these in traversals
+                        ArrayList<Tuple<String, Node>> newValidParents = new ArrayList<>();
+                        switch (pathComponents[i].toLowerCase(Locale.ROOT)) {
+                            case "@creator":
+                                for (Tuple<String, Node> checkParent : currentValidParents) {
+                                    if (checkParent.y != null) {
+                                        Node[] parentNodes = checkParent.y.getCreatedNodes(securityContext);
+                                        //System.out.println("Created " + parentNodes.length + " nodes");
+                                        for (Node parentNode : parentNodes) {
+                                            newValidParents.add(new Tuple<>("@creator" + ((checkParent.x.length() > 0) ? ("/" + checkParent.x) : ""), parentNode));
+                                        }
+                                    }
+                                }
+                                break;
+                        }
+                        currentValidParents = newValidParents;
+                    } else {
+                        ArrayList<Tuple<String, Node>> newValidParents = new ArrayList<>();
+                        for (Tuple<String, Node> checkParent : currentValidParents) {
+                            if (checkParent.y != null) {
+                                Node[] parentNodes = checkParent.y.getReferrers(securityContext, pathComponents[i]);
+                                for (Node parentNode : parentNodes) {
+                                    newValidParents.add(new Tuple<>(pathComponents[i] + ((checkParent.x.length() > 0) ? ("/" + checkParent.x) : ""), parentNode));
+                                }
                             }
                         }
+                        currentValidParents = newValidParents;
                     }
-                    currentValidParents = newValidParents;
+                    currentValidParents = currentValidParents.stream().distinct().collect(Collectors.toList());
                 }
-                currentValidParents = currentValidParents.stream().distinct().collect(Collectors.toList());
+                for (Tuple<String, Node> checkParent : currentValidParents) {
+                    hmo.put(new AbsoluteNodePath(checkParent.x), node);
+                }
             }
-            for (Tuple<String, Node> checkParent : currentValidParents) {
-                hmo.put(new AbsoluteNodePath(checkParent.x), node);
-            }
-            //if (currentValidParents.size() > 0) {
-                //hmo.put(new AbsoluteNodePath("{" + node.getId() + "}"), node);
-            //}
-        }
 
-        return hmo;
+            return hmo;
+        } else {
+            List<Tuple<String, Node>> branches = new ArrayList<>();
+
+            //System.out.println(String.join("/", pathComponents) + " AS " + securityContext.getActor().getId());
+            boolean isRoot = securityContext.getDatabase().getInstanceNode().equals(securityContext.getActor());
+            if (securityContext.getDatabase().getDebugSetting()) {
+                if (!isRoot) {
+                    System.out.println("RNP: " + String.join("/", pathComponents) + " AS " + securityContext.getActor().getId());
+                }
+            }
+            Pattern pattern = Pattern.compile("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", Pattern.CASE_INSENSITIVE);
+            Matcher matcher = pattern.matcher(pathComponents[0]);
+            if (matcher.find()) {
+                UUID uuid = UUID.fromString(matcher.group());
+                Node node = securityContext.getDatabase().getNode(uuid, securityContext.getActor());
+                if (node != null) {
+                    branches.add(new Tuple<>(pathComponents[0], node));
+                }
+            }
+            List<Tuple<String, Node>> newBranches = new ArrayList<>();
+            for (int level = 1; level < pathComponents.length; level++) {
+                for (Tuple<String, Node> branch: branches) {
+                    if (pathComponents[level].equals("*")) {
+                        HashMap<String, Node> props = branch.y.getProperties(securityContext);
+                        for (Map.Entry<String, Node> prop: props.entrySet()) {
+                            newBranches.add(new Tuple<>(branch.x + "/" + prop.getKey(), prop.getValue()));
+                        }
+                    } else if (pathComponents[level].equals("#")) {
+                        HashMap<String, Node> props = branch.y.getProperties(securityContext);
+                        for (Map.Entry<String, Node> prop: props.entrySet()) {
+                            if (prop.getKey().matches("[0-9]+")) {
+                                newBranches.add(new Tuple<>(branch.x + "/" + prop.getKey(), prop.getValue()));
+                            }
+                        }
+                    } else if (pathComponents[level].startsWith("@")) {
+                        if (pathComponents[level].equals("@creator")) {
+                            newBranches.add(new Tuple<>(branch.x + "/@creator", branch.y.getCNode()));
+                        } else {
+                            return new HashMap<>();
+                        }
+                    } else {
+                        Node node = branch.y.getProperty(securityContext, pathComponents[level]);
+                        if (node != null) {
+                            newBranches.add(new Tuple<>(branch.x + "/" + pathComponents[level], node));
+                        }
+                    }
+                }
+                branches = newBranches;
+                newBranches = new ArrayList<>();
+            }
+
+            HashMap<AbsoluteNodePath, Node> hmo = new HashMap<>();
+            if (searchSpace == null) {
+                for (Tuple<String, Node> branch : branches) {
+                    hmo.put(new AbsoluteNodePath(branch.x), branch.y);
+                }
+            } else {
+                Collection<Node> searchSpaceCollection = Arrays.asList(searchSpace);
+                for (Tuple<String, Node> branch : branches) {
+                    for (Node node: searchSpaceCollection) {
+                        //System.out.println(branch.y.getId() + " == " + node.getId());
+                        if (node == branch.y) {
+                            hmo.put(new AbsoluteNodePath(branch.x), branch.y);
+                        }
+                    }
+                }
+            }
+            return hmo;
+        }
     }
     public Node[] getMatchingNodes(SecurityContext securityContext, NodePathContext nodePathContext, Node[] searchSpace) {
         HashMap<AbsoluteNodePath, Node> hmo = getMatchingNodeMap(securityContext, nodePathContext, searchSpace);

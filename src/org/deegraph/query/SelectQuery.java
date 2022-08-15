@@ -93,7 +93,7 @@ public class SelectQuery extends Query {
         for (Node candidate : candidateNodes) { // Expand the output to provide every node
             Map<String, Map<AbsoluteNodePath, Node>> resultRepresentation = new HashMap<>();
             for (String property : requestedProperties) {
-                Map<AbsoluteNodePath, Node> matches = new RelativeNodePath(property).getMatchingNodeMap(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, candidate), graphDatabase.getAllNodesUnsafe());
+                Map<AbsoluteNodePath, Node> matches = new RelativeNodePath(property).getMatchingNodeMap(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, candidate), null);
                 resultRepresentation.put(property, matches);
             }
             outputMaps.put(candidate.getId(), resultRepresentation);

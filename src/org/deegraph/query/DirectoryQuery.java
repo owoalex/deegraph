@@ -15,7 +15,7 @@ public class DirectoryQuery extends Query {
             throw new NoSuchMethodException();
         }
 
-        Node[] valueNodes = new RelativeNodePath(parsedQuery.poll()).getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, this.actor), graphDatabase.getAllNodesUnsafe());
+        Node[] valueNodes = new RelativeNodePath(parsedQuery.poll()).getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, this.actor), null);
         Node valueNode = (valueNodes.length == 1) ? valueNodes[0] : null;
 
         if (valueNode == null) {

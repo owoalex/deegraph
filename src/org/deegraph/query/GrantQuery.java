@@ -31,9 +31,6 @@ public class GrantQuery extends Query {
                 case "DELETE":
                     actions.add(AuthorizedAction.DELETE);
                     break;
-                case "DELEGATE":
-                    actions.add(AuthorizedAction.DELEGATE);
-                    break;
                 case "ACT":
                     actions.add(AuthorizedAction.ACT);
                     break;
@@ -43,22 +40,22 @@ public class GrantQuery extends Query {
             current = parsedQuery.poll();
             escape = !(current.trim().equals(","));
         }
-        ArrayList<Node> onNodes = null;
         Condition condition = null;
+        ArrayList<RelativeNodePath> validFor = new ArrayList<>();
         escape = false;
+        boolean delegatable = false;
         while (!escape) {
             switch (current.toUpperCase(Locale.ROOT)) {
                 case "ON":
                     String fromStrPath = parsedQuery.poll();
                     RelativeNodePath fromRelPath = new RelativeNodePath(fromStrPath);
-                    if (fromRelPath != null) {
-                        onNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodesUnsafe())));
-                    } else {
-                        throw new RuntimeException("Error parsing '" + fromStrPath + "' as path") ;
-                    }
+                    validFor.add(fromRelPath);
                     break;
                 case "WHERE":
                     condition = parseConditionFromRemaining(graphDatabase);
+                    break;
+                case "DELEGATABLE":
+                    delegatable = true;
                     break;
                 default:
                     throw new ParseException("'" + current + "' is not a valid control word", 0);
@@ -69,17 +66,10 @@ public class GrantQuery extends Query {
             }
         }
 
-        AuthorizationRule rule = new AuthorizationRule(condition, actions.toArray(new AuthorizedAction[0]));
+        AuthorizationRule rule = new AuthorizationRule(validFor.toArray(new RelativeNodePath[0]), condition, actions.toArray(new AuthorizedAction[0]), delegatable);
         List<AuthorizedAction> authorizedActions = Arrays.asList(graphDatabase.getPermsOnNode(this.actor, graphDatabase.getNodeUnsafe(graphDatabase.getInstanceId())));
         if (authorizedActions.contains(AuthorizedAction.ACT)) { // Only allow users who have permissions to act as the instance (root) node to write permissions
-            if (onNodes == null) {
-                graphDatabase.registerRule(rule, "*");
-            } else {
-                for (Node cn : onNodes) {
-                    graphDatabase.registerRule(rule, cn.getId().toString());
-                }
-                graphDatabase.registerRule(rule, this.actor.getId().toString());
-            }
+            graphDatabase.registerRule(rule);
             return rule.getUuid();
         } else {
             return null;

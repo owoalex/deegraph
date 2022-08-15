@@ -256,7 +256,7 @@ public class APIHandlerV1 implements HttpHandler {
                                 userNode,
                                 bodyJSONObject.has("@schema") ? (bodyJSONObject.isNull("@schema") ? null : bodyJSONObject.getString("@schema")) : null
                             );
-                            System.out.println(newNode.getCNode().getId());
+                            //System.out.println(newNode.getCNode().getId());
                             response.put("@id", newNode.getId());
                             break;
                         case "@server_info":

@@ -59,6 +59,11 @@ public class EqualityCondition extends Condition {
                 return df.format(node.getOCTime()).getBytes(StandardCharsets.UTF_8);
             case "@data":
                 if (node.getDataUnsafe() != null) {
+                    return node.getData(new SecurityContext(this.graphDatabase, requestingNode)).getBytes(StandardCharsets.UTF_8);
+                }
+                break;
+            case "@parsed_data":
+                if (node.getDataUnsafe() != null) {
                     return new DataUrl(node.getData(new SecurityContext(this.graphDatabase, requestingNode))).getRawData();
                 }
                 break;

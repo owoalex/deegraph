@@ -37,8 +37,6 @@ public class GraphDatabase {
     private HashMap<UUID, ArrayList<OctetKeyPair>> instanceTrustStore; // Stores instance public keys we trust
     private HashMap<String, ArrayList<AuthenticationMethod>> authenticationMethods;
 
-    private HashMap<String, ArrayList<AuthorizationRule>> relevantRule; // To save searching for rules that matter between two nodes every request, cache the result of the search
-
     private HashMap<UUID, Node> registeredNodes; // Stores all the nodes we have loaded in the database
 
     //private ArrayList<ArrayList<UUID>> missingNodes; // Stores node global ids that are referenced but not found in database.
@@ -58,7 +56,14 @@ public class GraphDatabase {
 
     private static byte[] NAMESPACE_DNS = UUIDUtils.asBytes(UUID.fromString("6ba7b810-9dad-11d1-80b4-00c04fd430c8"));
 
+    private boolean debugMode = false;
+
     public GraphDatabase(String configFilePath) throws UnvalidatedJournalSegment, IOException {
+        this(configFilePath, false);
+    }
+
+    public GraphDatabase(String configFilePath, boolean debugMode) throws UnvalidatedJournalSegment, IOException {
+        this.debugMode = debugMode;
         File configFile = new File(configFilePath);
         StringBuilder jsonBuilder = new StringBuilder();
         try (BufferedReader br = new BufferedReader(new FileReader(configFile))) {
@@ -72,8 +77,6 @@ public class GraphDatabase {
         this.instanceTrustStore = new HashMap<>();
         this.authenticationMethods = new HashMap<>();
         this.authorizationRules = new ArrayList<>();
-        this.relevantRule = new HashMap<>();
-        this.relevantRule.put("*", new ArrayList<>());
 
         //String instanceNodePath = "{" + graphDatabaseBacking.getInstanceId().toString() + "}";
 
@@ -161,9 +164,8 @@ public class GraphDatabase {
 
         this.currentJournalSegment = new JournalSegment(this);
 
-        this.getRelevantRule().put("{" + this.instanceId.toString() + "}", new ArrayList<>());
-        // Default rule whereby the root node can access everything
-        this.getRelevantRule().get("{" + this.instanceId.toString() + "}").add(new AuthorizationRule(new EqualityCondition(this, new RawValue(this, "\"{" + this.instanceId.toString() + "}\""), new RawValue(this, "/@id")), new AuthorizedAction[] {AuthorizedAction.ACT, AuthorizedAction.DELEGATE, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.WRITE}));
+        // Default rule whereby the root node can access everything - was needed in the past, now handled in a more efficient manner
+        //registerRule(new AuthorizationRule(new RelativeNodePath[] {new RelativeNodePath("**")}, new EqualityCondition(this, new RawValue(this, "\"{" + this.instanceId.toString() + "}\""), new RawValue(this, "/@id")), new AuthorizedAction[] {AuthorizedAction.ACT, AuthorizedAction.DELEGATE, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.WRITE}));
 
         System.out.println("Restoring journal from disk");
         this.completeJournal = new LinkedList<>();
@@ -221,9 +223,6 @@ public class GraphDatabase {
         }
     }
 
-    HashMap<String, ArrayList<AuthorizationRule>> getRelevantRule() {
-        return this.relevantRule;
-    }
 
     public OctetKeyPair[] getInstanceKeys(UUID instanceId) {
         return instanceTrustStore.containsKey(instanceId) ? instanceTrustStore.get(instanceId).toArray(new OctetKeyPair[0]) : new OctetKeyPair[0];
@@ -296,54 +295,60 @@ public class GraphDatabase {
         return (exact == null) ? global : Stream.concat(exact.stream(), global.stream()).collect(Collectors.toList());
     }
 
-    public void registerRule(AuthorizationRule rule, String match) {
+    public void registerRule(AuthorizationRule rule) {
         authorizationRules.add(rule);
-        relevantRule.get(match).add(rule);
     }
 
+    public Authorization[] getAuthorizationsForNode(Node actor, Node object) {
+        if (actor == null) { // Obviously if either is null then no permissions can be given
+            //System.out.println("Perms for NULL on ANY = []");
+            return new Authorization[0];
+        }
+        if (object == null) {
+            //System.out.println("Perms for ANY on NULL = []");
+            return new Authorization[0];
+        }
+
+        ArrayList<Authorization> authorizations = new ArrayList<>();
+
+        for (AuthorizationRule rule : this.authorizationRules) {
+            Authorization auth = rule.getAuthorization(this, actor, object);
+            if (auth != null) {
+                authorizations.add(auth);
+            }
+            //System.out.println(rule.getCondition());
+        }
+
+        return authorizations.toArray(new Authorization[0]);
+    }
     public AuthorizedAction[] getPermsOnNode(Node actor, Node object) {
         if (this.getInstanceNode().equals(actor)) {
-            AuthorizedAction[] rootAuth = new AuthorizedAction[] {AuthorizedAction.ACT, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.DELEGATE, AuthorizedAction.WRITE};
+            AuthorizedAction[] rootAuth = new AuthorizedAction[] {AuthorizedAction.ACT, AuthorizedAction.DELETE, AuthorizedAction.READ, AuthorizedAction.WRITE};
             //System.out.println("Perms for ROOT on ANY = *");
             return rootAuth; // Root user always has all perms - so we can just exit here without evaluating any rules
         }
 
-        if (actor == null) { // Obviously if either is null then no permissions can be given
-            //System.out.println("Perms for NULL on ANY = []");
-            return new AuthorizedAction[0];
+        if (this.debugMode) {
+            System.out.println("ACTOR " + actor.getId());
         }
-        if (object == null) {
-            //System.out.println("Perms for ANY on NULL = []");
-            return new AuthorizedAction[0];
-        }
+
+        Authorization[] authorizations = getAuthorizationsForNode(actor, object);
 
         ArrayList<AuthorizedAction> authorizedActions = new ArrayList<>();
-        ArrayList<Authorization> authorizations = new ArrayList<>();
-        ArrayList<AuthorizationRule> rules = new ArrayList<>();
 
-        rules.addAll(this.relevantRule.get("*"));
-        if (actor != null) {
-            if (this.relevantRule.containsKey("{" + actor.getId().toString() + "}")) {
-                rules.addAll(this.relevantRule.get("{" + actor.getId().toString() + "}"));
+        for (Authorization authorization: authorizations) {
+            if (authorization.isValidForNode(object)) {
+                authorizedActions.addAll(Arrays.asList(authorization.getActions()));
+            } else {
+                if (this.debugMode) {
+                    System.out.println("NOT VALID FOR " + object.getId());
+                }
             }
-        }
-        if (this.relevantRule.containsKey("{" + object.getId().toString() + "}")) {
-            rules.addAll(this.relevantRule.get("{" + object.getId().toString() + "}"));
-        }
-
-        for (AuthorizationRule rule : rules) {
-            authorizations.addAll(Arrays.asList(rule.getAuthorizations(this, actor, object)));
-            //System.out.println(rule.condition.toString());
-        }
-
-        for (Authorization authorization : authorizations) {
-            //System.out.println(authorization.getAction().toString());
-            authorizedActions.addAll(Arrays.asList(authorization.getAction()));
         }
 
         List<AuthorizedAction> uniqueAuthorizedActions = authorizedActions.stream().distinct().collect(Collectors.toList());
 
-        /* String permsStr = "";
+        /*String permsStr = "";
         for (AuthorizedAction authAct: uniqueAuthorizedActions.toArray(new AuthorizedAction[0])) {
             permsStr = permsStr + ((permsStr.length() == 0) ? "" : ", ") + authAct;
         }
@@ -471,5 +476,49 @@ public class GraphDatabase {
 
     public Node getInstanceNode() {
         return this.getNodeUnsafe(this.instanceId);
+    }
+
+    public Node[] getAllVisibleNodes(Node actor) {
+        if (actor == null) {
+            return new Node[0];
+        }
+        if (getInstanceNode().equals(actor)) {
+            return this.getAllNodesUnsafe();
+        }
+        ArrayList<Node> allNodes = new ArrayList<>(this.registeredNodes.values());
+        ArrayList<Node> searchSpace = new ArrayList<>(this.registeredNodes.values());
+        ArrayList<Node> validNodes = new ArrayList<>();
+
+        for (AuthorizationRule rule : this.authorizationRules) {
+            if (Arrays.asList(rule.getAuthorizableActions()).contains(AuthorizedAction.READ)) {
+                for (Node candidate: allNodes) {
+                    Authorization auth = rule.getAuthorization(this, actor, candidate);
+                    for (RelativeNodePath relativeNodePath: auth.getValidPaths()) {
+                        List<Node> newValidNodes = Arrays.asList(relativeNodePath.getMatchingNodes(new SecurityContext(this, this.getInstanceNode()), new NodePathContext(actor, candidate), searchSpace.toArray(new Node[0])));
+                        searchSpace.removeAll(newValidNodes);
+                        validNodes.addAll(newValidNodes);
+                    }
+                }
+            }
+        }
+        return validNodes.toArray(new Node[0]);
+    }
+
+    public boolean getDebugSetting() {
+        return debugMode;
+    }
+
+    public Node getNode(UUID uuid, Node actor) {
+        if (actor == null) {
+            return null;
+        }
+        if (getInstanceNode().equals(actor)) {
+            return this.getNodeUnsafe(uuid);
+        }
+        if (Arrays.asList(this.getPermsOnNode(actor, this.getNodeUnsafe(uuid))).contains(AuthorizedAction.READ)) {
+            return this.getNodeUnsafe(uuid);
+        } else {
+            return null;
+        }
     }
 }

@@ -24,9 +24,18 @@ public class IdentityCondition extends Condition {
         String e1 = this.c1.asLiteral(securityContext,nodePathContext);
         String e2 = this.c2.asLiteral(securityContext,nodePathContext);
 
-        Node[] e1Nodes = new RelativeNodePath(e1).getMatchingNodes(securityContext, nodePathContext, securityContext.getDatabase().getAllNodesUnsafe());
+        Node[] e1Nodes = new RelativeNodePath(e1).getMatchingNodes(securityContext, nodePathContext, null);
+
+        //System.out.println("E1 : " + e1);
+
+        //for (Node node: e1Nodes) {
+        //    System.out.println("GID: " + node.getId());
+        //}
 
         Node[] matchingNodes = new RelativeNodePath(e2).getMatchingNodes(securityContext, nodePathContext, e1Nodes);
+
+        //System.out.println(e1 + ((matchingNodes.length > 0) ? " == " : " != ") + e2);
+        //System.out.println((matchingNodes.length > 0) ? matchingNodes[0].getId() : "NO MATCH");
 
         return (matchingNodes.length > 0); // Make sure there is an exact match
     }
