@@ -52,19 +52,21 @@ public class Query {
                         infix.append(currentChar);
                         boolean cancel = false;
                         while (!cancel) {
-                            switch (inputString.peek()) {
-                                case '!':
-                                case '=':
-                                case '>':
-                                case '<':
-                                    infix.append(inputString.pop());
-                                    break;
-                                case ' ':
-                                    inputString.pop();
-                                    cancel = true;
-                                    break;
-                                default:
-                                    cancel = true;
+                            if (!inputString.empty()) {
+                                switch (inputString.peek()) {
+                                    case '!':
+                                    case '=':
+                                    case '>':
+                                    case '<':
+                                        infix.append(inputString.pop());
+                                        break;
+                                    case ' ':
+                                        inputString.pop();
+                                        cancel = true;
+                                        break;
+                                    default:
+                                        cancel = true;
+                                }
                             }
                         }
                         parsedQuery.add(infix.toString());

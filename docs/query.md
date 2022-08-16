@@ -1,6 +1,6 @@
 # Query Language
 
-DDS uses a SQL-like query language with a few general differences caused by the fact that DDS is a graph, not relational database.
+deegraph uses a SQL-like query language with a few general differences caused by the fact that deegraph is a graph, not relational database.
 
 + Instead of column names, we use paths to match properties
 + There are no inner queries or joins, paths allow you to retrieve any related data you want
@@ -35,33 +35,38 @@ Example 3:
 ```
 Returns the set of messages that the user `{84bd7397-d9c9-44a2-b668-cfac0329766c}` has access to as an array.
 
+Example 4:
+
+```
+{84bd7397-d9c9-44a2-b668-cfac0329766c}/@creator/*
+```
+Returns all info about the creator of the node {84bd7397-d9c9-44a2-b668-cfac0329766c}.
+
 ## Commands
 
 ### SELECT
 
 Syntax: `SELECT <array of relative paths> [FROM <relative path>] [WHERE <condition>] [INSTANCEOF <schema url>]`
 
-Used to return a set of values optionally from a set of all nodes, or nodes matching a certain path.
+Used to return a set of values from your user node, or nodes from a set matching a particular path.
 
-#### FROM
+#### The FROM and INSTANCEOF directives
 
-Syntax 
+The FROM directive is particularly useful when combined with the INSTANCEOF directive. The relative path `**` will select every node in the database, and instanceof can filter these by what schema they conform to. This allows use of the SELECT query almost identically to how it is used in traditional relational databases.
 
-NOTE:
-
-Don't use a query like `SELECT {84bd7397-d9c9-44a2-b668-cfac0329766c}` to select a particular node, as this will attempt to select a relative path on *EVERY* node in the database. The correct way to select a single node is the following: `SELECT . FROM {84bd7397-d9c9-44a2-b668-cfac0329766c}`. This selects the `.` or "Self" identifier from the set of nodes that match the path `{84bd7397-d9c9-44a2-b668-cfac0329766c}`. This will select and return a single node with ID `{84bd7397-d9c9-44a2-b668-cfac0329766c}`.
+#### Examples
 
 Example 0:
 
 ```
-SELECT . WHERE name == "Peter Evans"
+SELECT . WHERE name == "data:text/plain,Peter+Evans" FROM **
 ```
 Selects all nodes where node's name is "Peter Evans"
 
 Example 1:
 
 ```
-SELECT email_address, name WHERE name/first_name == "Peter" INSTANCEOF "https://schemas.auxiliumsoftware.co.uk/v1/user.json"
+SELECT email_address, name WHERE display_name == "data:text/plain,Peter" FROM ** INSTANCEOF "https://schemas.auxiliumsoftware.co.uk/v1/user.json"
 ```
 Selects the email address and name for all users where their first name is "Peter"
 
@@ -70,7 +75,7 @@ Selects the email address and name for all users where their first name is "Pete
 Example 0:
 
 ```
-GRANT WRITE, READ TO {87cdd424-295d-49ec-8720-719fa6ada18f} WHERE email_address == "test@example.com"
+GRANT WRITE, READ TO {87cdd424-295d-49ec-8720-719fa6ada18f} WHERE email_address == "data:text/plain,test%40example.com"
 ```
 
 Example 1:
