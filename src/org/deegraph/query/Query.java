@@ -207,8 +207,18 @@ public class Query {
                     allowLiteral = false;
                     bracketLevel--;
                     break;
-                case "==":
+                case ">":
+                case "GT":
+                case "<":
+                case "LT":
+                case ">=":
+                case "GTE":
+                case "<=":
+                case "LTE":
+                case "=":
                 case "EQUALS":
+                case "==":
+                case "IDENTICAL":
                 case "===":
                 case "IS":
                 case "!=":

@@ -1,11 +1,21 @@
 package org.deegraph.conditions;
 
 import org.deegraph.database.GraphDatabase;
+import org.deegraph.database.Node;
 import org.deegraph.database.NodePathContext;
 import org.deegraph.database.SecurityContext;
+import org.deegraph.formats.DataUrl;
 
+import java.nio.charset.StandardCharsets;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAccessor;
 import java.util.LinkedList;
 import java.util.Locale;
+import java.util.TimeZone;
 
 public abstract class Condition {
     protected GraphDatabase graphDatabase;
@@ -78,6 +88,26 @@ public abstract class Condition {
 
             if (operator != null) {
                 switch (operator) {
+                    case ">":
+                        returnCondition = new GreaterThanCondition(graphDatabase, leftCondition, returnCondition);
+                        operator = null;
+                        break;
+                    case "<":
+                        returnCondition = new LessThanCondition(graphDatabase, leftCondition, returnCondition);
+                        operator = null;
+                        break;
+                    case ">=":
+                        returnCondition = new GreaterThanOrEqualCondition(graphDatabase, leftCondition, returnCondition);
+                        operator = null;
+                        break;
+                    case "<=":
+                        returnCondition = new LessThanOrEqualCondition(graphDatabase, leftCondition, returnCondition);
+                        operator = null;
+                        break;
+                    case "=":
+                        returnCondition = new ImplicitEqualityCondition(graphDatabase, leftCondition, returnCondition);
+                        operator = null;
+                        break;
                     case "==":
                         returnCondition = new EqualityCondition(graphDatabase, leftCondition, returnCondition);
                         operator = null;
@@ -115,8 +145,18 @@ public abstract class Condition {
                 String currentOperator = sideComponents.peekLast();
                 currentOperator = (currentOperator == null) ? currentOperator : currentOperator.toUpperCase(Locale.ROOT);
                 switch (currentOperator) {
-                    case "==":
+                    case ">":
+                    case "GT":
+                    case "<":
+                    case "LT":
+                    case ">=":
+                    case "GTE":
+                    case "<=":
+                    case "LTE":
+                    case "=":
                     case "EQUALS":
+                    case "==":
+                    case "IDENTICAL":
                     case "===":
                     case "IS":
                     case "!=":
@@ -155,8 +195,28 @@ public abstract class Condition {
                         break;
                 }
                 switch (currentOperator) {
-                    case "==":
+                    case ">":
+                    case "GT":
+                        operator = ">";
+                        break;
+                    case "<":
+                    case "LT":
+                        operator = "<";
+                        break;
+                    case ">=":
+                    case "GTE":
+                        operator = ">=";
+                        break;
+                    case "<=":
+                    case "LTE":
+                        operator = "<=";
+                        break;
+                    case "=":
                     case "EQUALS":
+                        operator = "=";
+                        break;
+                    case "==":
+                    case "IDENTICAL":
                         operator = "==";
                         break;
                     case "===":
@@ -204,17 +264,149 @@ public abstract class Condition {
     }
 
     public boolean eval(SecurityContext securityContext, NodePathContext context) {
-        try {
-            if (this.asLiteral(securityContext, context).toUpperCase(Locale.ROOT).equals("TRUE")) {
-                return true;
-            }
-            return (Integer.valueOf(this.asLiteral(securityContext, context)) > 0);
-        } catch (NumberFormatException e) {
-            return false;
+        return coerceToBool(this.asLiteral(securityContext, context));
+    }
+
+    protected String metaProp(Node node, String key, NodePathContext context, Node requestingNode) throws ParseException {
+        TimeZone tz = TimeZone.getTimeZone("UTC");
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
+        df.setTimeZone(tz);
+
+        switch (key) {
+            case "@creator":
+                if (node.getCNode() != null) {
+                    String dataToParse = node.getCNode().getData(new SecurityContext(this.graphDatabase, requestingNode));
+                    if (dataToParse != null) {
+                        return new DataUrl(dataToParse).getStringData();
+                    }
+                }
+                break;
+            case "@original_creator_id":
+                return "{" + node.getOCNodeId().toString() + "}";
+            case "@id":
+                return "{" + node.getId().toString() + "}";
+            case "@original_id":
+                return "{" + node.getOriginalId().toString() + "}";
+            case "@original_instance_id":
+                return "{" + node.getOriginalInstanceId().toString() + "}";
+            case "@created":
+                return df.format(node.getCTime());
+            case "@originally_created":
+                return df.format(node.getOCTime());
+            case "@data":
+                String dataToParse = node.getData(new SecurityContext(this.graphDatabase, requestingNode));
+                if (dataToParse != null) {
+                    return new DataUrl(dataToParse).getStringData();
+                }
+                break;
         }
+        return null;
+    }
+    protected byte[] metaPropRaw(Node node, String key, NodePathContext context, Node requestingNode) throws ParseException {
+        TimeZone tz = TimeZone.getTimeZone("UTC");
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
+        df.setTimeZone(tz);
+
+        switch (key) {
+            case "@creator":
+                if (node.getCNode() != null) {
+                    String data = node.getCNode().getData(new SecurityContext(this.graphDatabase, requestingNode));
+                    if (data != null) {
+                        return data.getBytes(StandardCharsets.UTF_8);
+                    }
+                }
+                break;
+            case "@parsed_creator":
+                if (node.getCNode() != null) {
+                    String data = node.getCNode().getData(new SecurityContext(this.graphDatabase, requestingNode));
+                    if (data != null) {
+                        return new DataUrl(data).getStringData().getBytes(StandardCharsets.UTF_8);
+                    }
+                }
+                break;
+            case "@creator_id":
+                if (node.getCNode() != null) {
+                    if (node.getCNode().getId() != null) {
+                        return ("{" + node.getCNode().getId().toString() + "}").getBytes(StandardCharsets.UTF_8);
+                    }
+                }
+                break;
+            case "@original_creator_id":
+                return ("{" + node.getOCNodeId().toString() + "}").getBytes(StandardCharsets.UTF_8);
+            case "@id":
+                return ("{" + node.getId().toString() + "}").getBytes(StandardCharsets.UTF_8);
+            case "@original_id":
+                return ("{" + node.getOriginalId().toString() + "}").getBytes(StandardCharsets.UTF_8);
+            case "@original_instance_id":
+                return ("{" + node.getOriginalInstanceId().toString() + "}").getBytes(StandardCharsets.UTF_8);
+            case "@created":
+                return df.format(node.getCTime()).getBytes(StandardCharsets.UTF_8);
+            case "@originally_created":
+                return df.format(node.getOCTime()).getBytes(StandardCharsets.UTF_8);
+            case "@data":
+                String data = node.getData(new SecurityContext(this.graphDatabase, requestingNode));
+                if (data != null) {
+                    return data.getBytes(StandardCharsets.UTF_8);
+                }
+                break;
+            case "@parsed_data":
+                String dataToParse = node.getData(new SecurityContext(this.graphDatabase, requestingNode));
+                if (dataToParse != null) {
+                    return new DataUrl(dataToParse).getRawData();
+                }
+                break;
+        }
+        return null;
     }
 
     public String asLiteral(SecurityContext securityContext, NodePathContext context) {
         return this.eval(securityContext, context) ? "TRUE" : "FALSE";
+    }
+
+    protected static ValueTypes detectType(String strRepr) {
+        if (strRepr.equalsIgnoreCase("TRUE") || strRepr.equalsIgnoreCase("FALSE")) {
+            return ValueTypes.BOOL;
+        } else if (strRepr.matches("^[0-9]+(\\.[0-9]+)?$")) {
+            return ValueTypes.NUMBER;
+        } else if (strRepr.matches("^0x[0-9a-fA-F]+$")) {
+            return ValueTypes.NUMBER;
+        } else if (strRepr.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\\.[0-9]+)?([-+][0-9]{2}(:[0-9]{2})?|Z)$")) {
+            return ValueTypes.NUMBER;
+        }
+        return ValueTypes.STRING;
+    }
+
+    protected static boolean coerceToBool(String strRepr) {
+        if (strRepr == null) {
+            return false;
+        } else if (strRepr.equalsIgnoreCase("TRUE")) {
+            return true;
+        } else if (strRepr.equalsIgnoreCase("FALSE")) {
+            return false;
+        }
+        return (coerceToNumber(strRepr) > 0);
+    }
+
+    protected static double coerceToNumber(String strRepr) {
+        if (strRepr == null) {
+            return 0;
+        } else if (strRepr.equalsIgnoreCase("TRUE")) {
+            return 1;
+        } else if (strRepr.equalsIgnoreCase("FALSE")) {
+            return 0;
+        } else if (strRepr.matches("^[0-9]+(\\.[0-9]+)?$")) {
+            return Double.parseDouble(strRepr);
+        } else if (strRepr.matches("^0x[0-9a-fA-F]+$")) {
+            return Long.parseLong(strRepr.substring(2), 16);
+        } else if (strRepr.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\\.[0-9]+)?Z$")) {
+            TemporalAccessor ta = DateTimeFormatter.ISO_INSTANT.parse(strRepr);
+            Instant i = Instant.from(ta);
+            return i.toEpochMilli() / 1000.0d;
+        } else if (strRepr.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\\.[0-9]+)?[-+][0-9]{2}(:[0-9]{2})?$")) {
+            TemporalAccessor ta = DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(strRepr);
+            Instant i = Instant.from(ta);
+            return i.toEpochMilli() / 1000.0d;
+        }
+        return 0;
     }
 }
