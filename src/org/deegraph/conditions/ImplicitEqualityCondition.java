@@ -32,11 +32,19 @@ public class ImplicitEqualityCondition extends CoerciveComparitorCondition {
             ValueTypes type1 = detectType(e1);
             ValueTypes type2 = detectType(e2);
 
-            if (type1.equals(ValueTypes.BOOL) || type2.equals(ValueTypes.BOOL)) {
-                return (coerceToBool(e1) == coerceToBool(e2));
+            try {
+                if (type1.equals(ValueTypes.BOOL) || type2.equals(ValueTypes.BOOL)) {
+                    return (coerceToBool(e1) == coerceToBool(e2));
+                }
+            } catch (NumberFormatException e) {
+
             }
-            if (type1.equals(ValueTypes.NUMBER) || type2.equals(ValueTypes.NUMBER)) {
-                return (coerceToNumber(e1) == coerceToNumber(e2));
+            try {
+                if (type1.equals(ValueTypes.NUMBER) || type2.equals(ValueTypes.NUMBER)) {
+                    return (coerceToNumber(e1) == coerceToNumber(e2));
+                }
+            } catch (NumberFormatException e) {
+
             }
             return e1.equals(e2);
         } catch (ParseException e) {

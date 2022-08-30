@@ -117,10 +117,14 @@ public abstract class Condition {
                         operator = null;
                         break;
                     case "!=":
-                        returnCondition = new LogicalNotCondition(graphDatabase, new EqualityCondition(graphDatabase, leftCondition, returnCondition));
+                        returnCondition = new LogicalNotCondition(graphDatabase, new ImplicitEqualityCondition(graphDatabase, leftCondition, returnCondition));
                         operator = null;
                         break;
                     case "!==":
+                        returnCondition = new LogicalNotCondition(graphDatabase, new EqualityCondition(graphDatabase, leftCondition, returnCondition));
+                        operator = null;
+                        break;
+                    case "ISNT":
                         returnCondition = new LogicalNotCondition(graphDatabase, new IdentityCondition(graphDatabase, leftCondition, returnCondition));
                         operator = null;
                         break;
@@ -228,8 +232,10 @@ public abstract class Condition {
                         operator = "!=";
                         break;
                     case "!==":
-                    case "ISNT":
                         operator = "!==";
+                        break;
+                    case "ISNT":
+                        operator = "ISNT";
                         break;
                     case "&&":
                     case "AND":
@@ -378,18 +384,18 @@ public abstract class Condition {
 
     protected static boolean coerceToBool(String strRepr) {
         if (strRepr == null) {
-            return false;
+            throw new NumberFormatException();
         } else if (strRepr.equalsIgnoreCase("TRUE")) {
             return true;
         } else if (strRepr.equalsIgnoreCase("FALSE")) {
             return false;
         }
-        return (coerceToNumber(strRepr) > 0);
+        return (coerceToNumber(strRepr) > 0.5d);
     }
 
     protected static double coerceToNumber(String strRepr) {
         if (strRepr == null) {
-            return 0;
+            throw new NumberFormatException();
         } else if (strRepr.equalsIgnoreCase("TRUE")) {
             return 1;
         } else if (strRepr.equalsIgnoreCase("FALSE")) {
@@ -407,6 +413,6 @@ public abstract class Condition {
             Instant i = Instant.from(ta);
             return i.toEpochMilli() / 1000.0d;
         }
-        return 0;
+        throw new NumberFormatException();
     }
 }
