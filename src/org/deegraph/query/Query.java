@@ -129,8 +129,8 @@ public class Query {
             case "UNLINK":
                 this.queryType = QueryType.UNLINK;
                 break;
-            case "CONSTRUCT":
-                this.queryType = QueryType.CONSTRUCT;
+            case "PUT":
+                this.queryType = QueryType.PUT;
                 break;
             case "INSERT":
                 this.queryType = QueryType.INSERT;
@@ -170,8 +170,8 @@ public class Query {
             case "PERMS":
             case "PERMISSIONS":
                 return new PermissionsQuery(query, actor);
-            case "CONSTRUCT":
-                return new ConstructQuery(query, actor);
+            case "PUT":
+                return new PutQuery(query, actor);
             case "INSERT":
                 return new InsertQuery(query, actor);
             case "DEL":

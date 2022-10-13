@@ -220,8 +220,8 @@ public class APIHandlerV1 implements HttpHandler {
                                         response.put("@permissions", listMap);
                                         break;
                                     }
-                                    case CONSTRUCT: {
-                                        Node newNode = ((ConstructQuery) query).runConstructQuery(this.graphDatabase);
+                                    case PUT: {
+                                        Node newNode = ((PutQuery) query).runPutQuery(this.graphDatabase);
                                         JSONObject nodeJsonRepr = nodeToJson(securityContext, newNode, false);
                                         response.put("@node", nodeJsonRepr);
                                         break;

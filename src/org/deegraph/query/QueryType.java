@@ -7,7 +7,7 @@ public enum QueryType {
     UNLINK,
     DELETE,
     INSERT,
-    CONSTRUCT,
+    PUT,
     DIRECTORY,
     REFERENCES,
     PERMISSIONS
