@@ -1,4 +1,4 @@
-package org.deegraph.conditions;
+package org.deegraph.formats;
 
 public enum ValueTypes {
     STRING,

@@ -6,6 +6,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsExchange;
 import org.deegraph.database.*;
+import org.deegraph.formats.Tuple;
 import org.deegraph.query.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -24,7 +25,7 @@ public class APIHandlerV1 implements HttpHandler {
         this.graphDatabase = graphDatabase;
     }
 
-    private JSONObject nodeToJson(SecurityContext securityContext, Node node) {
+    private JSONObject nodeToJson(SecurityContext securityContext, Node node, boolean metaOnly) {
         TimeZone tz = TimeZone.getTimeZone("UTC");
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
         df.setTimeZone(tz);
@@ -48,8 +49,10 @@ public class APIHandlerV1 implements HttpHandler {
             }
             response.put("@data", node.getData(securityContext));
             response.put("@schema", node.getSchema());
-            for (String key : node.getProperties(securityContext).keySet()) {
-                response.put(key, node.getProperty(securityContext, key).getId());
+            if (!metaOnly) {
+                for (String key : node.getProperties(securityContext).keySet()) {
+                    response.put(key, node.getProperty(securityContext, key).getId());
+                }
             }
             return response;
         } else {
@@ -151,7 +154,8 @@ public class APIHandlerV1 implements HttpHandler {
                                         break;
                                     }
                                     case SELECT: {
-                                        Map<UUID, Map<String, Map<AbsoluteNodePath, Node>>> results = ((SelectQuery) query).runSelectQuery(this.graphDatabase);
+                                        Tuple<Map<UUID, Map<String, Map<AbsoluteNodePath, Node>>>, List<UUID>> compoundResult = ((SelectQuery) query).runSelectQuery(this.graphDatabase);
+                                        Map<UUID, Map<String, Map<AbsoluteNodePath, Node>>> results = compoundResult.x;
                                         JSONObject outputMap = new JSONObject();
                                         for (UUID rowId : results.keySet()) {
                                             Map<String, Map<AbsoluteNodePath, Node>> result = results.get(rowId);
@@ -162,7 +166,7 @@ public class APIHandlerV1 implements HttpHandler {
                                                 for (AbsoluteNodePath absoluteNodePath : result.get(key).keySet()) {
                                                     Node node = result.get(key).get(absoluteNodePath);
                                                     if (node != null) {
-                                                        JSONObject nodeJsonRepr = nodeToJson(securityContext, node);
+                                                        JSONObject nodeJsonRepr = nodeToJson(securityContext, node, true);
                                                         if (nodeJsonRepr != null) {
                                                             nodeList.put(absoluteNodePath.toString(), nodeJsonRepr);
                                                             atLeastOneValue = true;
@@ -178,6 +182,10 @@ public class APIHandlerV1 implements HttpHandler {
                                             }
                                         }
                                         response.put("@rows", outputMap);
+                                        if (compoundResult.y != null) {
+                                            JSONArray order = new JSONArray(compoundResult.y);
+                                            response.put("@order", order);
+                                        }
                                         break;
                                     }
                                     case LINK: {
@@ -214,7 +222,7 @@ public class APIHandlerV1 implements HttpHandler {
                                     }
                                     case CONSTRUCT: {
                                         Node newNode = ((ConstructQuery) query).runConstructQuery(this.graphDatabase);
-                                        JSONObject nodeJsonRepr = nodeToJson(securityContext, newNode);
+                                        JSONObject nodeJsonRepr = nodeToJson(securityContext, newNode, false);
                                         response.put("@node", nodeJsonRepr);
                                         break;
                                     }
@@ -222,7 +230,7 @@ public class APIHandlerV1 implements HttpHandler {
                                         Node[] newNodes = ((InsertQuery) query).runInsertQuery(this.graphDatabase);
                                         JSONArray nodeList = new JSONArray();
                                         for (Node newNode: newNodes) {
-                                            JSONObject nodeJsonRepr = nodeToJson(securityContext, newNode);
+                                            JSONObject nodeJsonRepr = nodeToJson(securityContext, newNode, false);
                                             nodeList.put(nodeJsonRepr);
                                         }
                                         response.put("@nodes", nodeList);
@@ -314,7 +322,7 @@ public class APIHandlerV1 implements HttpHandler {
                     responseCode = 404;
                     response.put("@error", "NodeNotFound");
                 } else {
-                    response = nodeToJson(securityContext, tailNode);
+                    response = nodeToJson(securityContext, tailNode, false);
                 }
             }
         } catch (Exception e) {

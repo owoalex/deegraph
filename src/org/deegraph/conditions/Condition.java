@@ -17,6 +17,8 @@ import java.util.LinkedList;
 import java.util.Locale;
 import java.util.TimeZone;
 
+import static org.deegraph.formats.TypeCoercionUtilities.coerceToBool;
+
 public abstract class Condition {
     protected GraphDatabase graphDatabase;
     protected Condition(GraphDatabase graphDatabase) {
@@ -273,146 +275,11 @@ public abstract class Condition {
         return coerceToBool(this.asLiteral(securityContext, context));
     }
 
-    protected String metaProp(Node node, String key, NodePathContext context, Node requestingNode) throws ParseException {
-        TimeZone tz = TimeZone.getTimeZone("UTC");
-        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
-        df.setTimeZone(tz);
 
-        switch (key) {
-            case "@creator":
-                if (node.getCNode() != null) {
-                    String dataToParse = node.getCNode().getData(new SecurityContext(this.graphDatabase, requestingNode));
-                    if (dataToParse != null) {
-                        return new DataUrl(dataToParse).getStringData();
-                    }
-                }
-                break;
-            case "@original_creator_id":
-                return "{" + node.getOCNodeId().toString() + "}";
-            case "@id":
-                return "{" + node.getId().toString() + "}";
-            case "@original_id":
-                return "{" + node.getOriginalId().toString() + "}";
-            case "@original_instance_id":
-                return "{" + node.getOriginalInstanceId().toString() + "}";
-            case "@created":
-                return df.format(node.getCTime());
-            case "@originally_created":
-                return df.format(node.getOCTime());
-            case "@data":
-                String dataToParse = node.getData(new SecurityContext(this.graphDatabase, requestingNode));
-                if (dataToParse != null) {
-                    return new DataUrl(dataToParse).getStringData();
-                }
-                break;
-        }
-        return null;
-    }
-    protected byte[] metaPropRaw(Node node, String key, NodePathContext context, Node requestingNode) throws ParseException {
-        TimeZone tz = TimeZone.getTimeZone("UTC");
-        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
-        df.setTimeZone(tz);
-
-        switch (key) {
-            case "@creator":
-                if (node.getCNode() != null) {
-                    String data = node.getCNode().getData(new SecurityContext(this.graphDatabase, requestingNode));
-                    if (data != null) {
-                        return data.getBytes(StandardCharsets.UTF_8);
-                    }
-                }
-                break;
-            case "@parsed_creator":
-                if (node.getCNode() != null) {
-                    String data = node.getCNode().getData(new SecurityContext(this.graphDatabase, requestingNode));
-                    if (data != null) {
-                        return new DataUrl(data).getStringData().getBytes(StandardCharsets.UTF_8);
-                    }
-                }
-                break;
-            case "@creator_id":
-                if (node.getCNode() != null) {
-                    if (node.getCNode().getId() != null) {
-                        return ("{" + node.getCNode().getId().toString() + "}").getBytes(StandardCharsets.UTF_8);
-                    }
-                }
-                break;
-            case "@original_creator_id":
-                return ("{" + node.getOCNodeId().toString() + "}").getBytes(StandardCharsets.UTF_8);
-            case "@id":
-                return ("{" + node.getId().toString() + "}").getBytes(StandardCharsets.UTF_8);
-            case "@original_id":
-                return ("{" + node.getOriginalId().toString() + "}").getBytes(StandardCharsets.UTF_8);
-            case "@original_instance_id":
-                return ("{" + node.getOriginalInstanceId().toString() + "}").getBytes(StandardCharsets.UTF_8);
-            case "@created":
-                return df.format(node.getCTime()).getBytes(StandardCharsets.UTF_8);
-            case "@originally_created":
-                return df.format(node.getOCTime()).getBytes(StandardCharsets.UTF_8);
-            case "@data":
-                String data = node.getData(new SecurityContext(this.graphDatabase, requestingNode));
-                if (data != null) {
-                    return data.getBytes(StandardCharsets.UTF_8);
-                }
-                break;
-            case "@parsed_data":
-                String dataToParse = node.getData(new SecurityContext(this.graphDatabase, requestingNode));
-                if (dataToParse != null) {
-                    return new DataUrl(dataToParse).getRawData();
-                }
-                break;
-        }
-        return null;
-    }
 
     public String asLiteral(SecurityContext securityContext, NodePathContext context) {
         return this.eval(securityContext, context) ? "TRUE" : "FALSE";
     }
 
-    protected static ValueTypes detectType(String strRepr) {
-        if (strRepr.equalsIgnoreCase("TRUE") || strRepr.equalsIgnoreCase("FALSE")) {
-            return ValueTypes.BOOL;
-        } else if (strRepr.matches("^[0-9]+(\\.[0-9]+)?$")) {
-            return ValueTypes.NUMBER;
-        } else if (strRepr.matches("^0x[0-9a-fA-F]+$")) {
-            return ValueTypes.NUMBER;
-        } else if (strRepr.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\\.[0-9]+)?([-+][0-9]{2}(:[0-9]{2})?|Z)$")) {
-            return ValueTypes.NUMBER;
-        }
-        return ValueTypes.STRING;
-    }
 
-    protected static boolean coerceToBool(String strRepr) {
-        if (strRepr == null) {
-            throw new NumberFormatException();
-        } else if (strRepr.equalsIgnoreCase("TRUE")) {
-            return true;
-        } else if (strRepr.equalsIgnoreCase("FALSE")) {
-            return false;
-        }
-        return (coerceToNumber(strRepr) > 0.5d);
-    }
-
-    protected static double coerceToNumber(String strRepr) {
-        if (strRepr == null) {
-            throw new NumberFormatException();
-        } else if (strRepr.equalsIgnoreCase("TRUE")) {
-            return 1;
-        } else if (strRepr.equalsIgnoreCase("FALSE")) {
-            return 0;
-        } else if (strRepr.matches("^[0-9]+(\\.[0-9]+)?$")) {
-            return Double.parseDouble(strRepr);
-        } else if (strRepr.matches("^0x[0-9a-fA-F]+$")) {
-            return Long.parseLong(strRepr.substring(2), 16);
-        } else if (strRepr.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\\.[0-9]+)?Z$")) {
-            TemporalAccessor ta = DateTimeFormatter.ISO_INSTANT.parse(strRepr);
-            Instant i = Instant.from(ta);
-            return i.toEpochMilli() / 1000.0d;
-        } else if (strRepr.matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2})?(\\.[0-9]+)?[-+][0-9]{2}(:[0-9]{2})?$")) {
-            TemporalAccessor ta = DateTimeFormatter.ISO_OFFSET_DATE_TIME.parse(strRepr);
-            Instant i = Instant.from(ta);
-            return i.toEpochMilli() / 1000.0d;
-        }
-        throw new NumberFormatException();
-    }
 }

@@ -1,10 +1,11 @@
 package org.deegraph.conditions;
 
 import org.deegraph.database.*;
+import org.deegraph.formats.ValueTypes;
 
-import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
-import java.util.Arrays;
+
+import static org.deegraph.formats.TypeCoercionUtilities.*;
 
 public class ImplicitEqualityCondition extends CoerciveComparitorCondition {
 

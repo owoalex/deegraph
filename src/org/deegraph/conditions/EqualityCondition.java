@@ -6,6 +6,8 @@ import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.util.Arrays;
 
+import static org.deegraph.database.NodePath.metaPropRaw;
+
 public class EqualityCondition extends Condition {
     private Condition c1;
     private Condition c2;
@@ -45,7 +47,7 @@ public class EqualityCondition extends Condition {
             }
             Node e1Node = new RelativeNodePath(literal).toAbsolute(nodePathContext).getNodeFrom(this.graphDatabase, securityContext);
             if (e1Node != null) {
-                return metaPropRaw(e1Node, prop, nodePathContext, requestingNode);
+                return metaPropRaw(this.graphDatabase, e1Node, prop, requestingNode);
             }
         }
         return new byte[0];

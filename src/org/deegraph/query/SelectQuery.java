@@ -2,16 +2,20 @@ package org.deegraph.query;
 
 import org.deegraph.conditions.Condition;
 import org.deegraph.database.*;
+import org.deegraph.formats.Tuple;
+import org.deegraph.formats.TypeCoercionUtilities;
 
 import java.text.ParseException;
 import java.util.*;
+
+import static org.deegraph.database.NodePath.metaProp;
 
 public class SelectQuery extends Query {
     protected SelectQuery(String src, Node actor) throws ParseException {
         super(src, actor);
     }
 
-    public Map<UUID, Map<String, Map<AbsoluteNodePath, Node>>> runSelectQuery(GraphDatabase graphDatabase) throws ParseException, NoSuchMethodException {
+    public Tuple<Map<UUID, Map<String, Map<AbsoluteNodePath, Node>>>, List<UUID>> runSelectQuery(GraphDatabase graphDatabase) throws ParseException, NoSuchMethodException {
         if (this.queryType != QueryType.SELECT) {
             throw new NoSuchMethodException();
         }
@@ -31,6 +35,7 @@ public class SelectQuery extends Query {
         Condition condition = null;
         String schemaLimit = null;
         String fromLimit = null;
+        String orderBy = null;
         ArrayList<Node> candidateNodes = null;
         escape = (current == null);
         while (!escape) {
@@ -40,6 +45,9 @@ public class SelectQuery extends Query {
                     break;
                 case "INSTANCEOF":
                     schemaLimit = parsedQuery.poll();
+                    break;
+                case "ORDERBY":
+                    orderBy = parsedQuery.poll();
                     break;
                 case "WHERE":
                     condition = parseConditionFromRemaining(graphDatabase);
@@ -98,7 +106,56 @@ public class SelectQuery extends Query {
             }
             outputMaps.put(candidate.getId(), resultRepresentation);
         }
-        return outputMaps;
+
+        List<UUID> order = null;
+
+        if (orderBy != null) {
+            boolean absolute = orderBy.startsWith("/");
+            String[] components = orderBy.split("/");
+            String prop = "@data";
+            if (components[components.length - 1].startsWith("@")) {
+                prop = components[components.length - 1];
+                orderBy = String.join("/", Arrays.copyOfRange(components, 0, components.length - 1));
+                if (!absolute && orderBy.length() == 0) {
+                    orderBy = "."; // Special case, empty strings resulting from removing an @ property should be changed to a cd operator
+                }
+            }
+            if (absolute) {
+                orderBy = "/" + orderBy;
+            }
+
+            RelativeNodePath orderByPath = new RelativeNodePath(orderBy);
+
+            order = new ArrayList<>();
+            if (orderByPath != null) {
+                TreeMap<Double, List<UUID>> priorityMap = new TreeMap<>();
+                SecurityContext securityContext = new SecurityContext(graphDatabase, this.actor);
+                for (Node candidate : candidateNodes) { // Expand the output to provide every node
+                    double priority = 0;
+                    Node[] matchingNodes = orderByPath.getMatchingNodes(securityContext, new NodePathContext(this.actor, candidate), null);
+                    if (matchingNodes.length > 0) {
+                        //matchingNodes[0]
+                        try {
+                            priority = TypeCoercionUtilities.coerceToNumber(metaProp(graphDatabase, matchingNodes[0], prop, this.actor));
+                        } catch (NumberFormatException e) {
+                            priority = 0;
+                        }
+                    }
+                    if (!priorityMap.containsKey(priority)) {
+                        priorityMap.put(priority, new ArrayList<>());
+                    }
+                    priorityMap.get(priority).add(candidate.getId());
+                }
+                SortedSet<Double> keys = new TreeSet<>(priorityMap.keySet());
+                for (Double priority : keys) {
+                    order.addAll(priorityMap.get(priority));
+                }
+            } else {
+                throw new RuntimeException("Error parsing '" + orderBy + "' as path") ;
+            }
+        }
+
+        return new Tuple<>(outputMaps, order);
     }
 
 }

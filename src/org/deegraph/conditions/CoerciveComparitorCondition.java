@@ -5,6 +5,8 @@ import org.deegraph.database.*;
 import java.text.ParseException;
 import java.util.Arrays;
 
+import static org.deegraph.database.NodePath.metaProp;
+
 public class CoerciveComparitorCondition extends Condition {
     protected Condition c1;
     protected Condition c2;
@@ -39,7 +41,7 @@ public class CoerciveComparitorCondition extends Condition {
             }
             Node node = new RelativeNodePath(literal).toAbsolute(nodePathContext).getNodeFrom(this.graphDatabase, securityContext);
             if (node != null) {
-                return metaProp(node, prop, nodePathContext, requestingNode);
+                return metaProp(this.graphDatabase, node, prop, requestingNode);
             }
         }
         return null;

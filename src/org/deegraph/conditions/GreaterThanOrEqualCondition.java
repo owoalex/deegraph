@@ -6,6 +6,8 @@ import org.deegraph.database.SecurityContext;
 
 import java.text.ParseException;
 
+import static org.deegraph.formats.TypeCoercionUtilities.coerceToNumber;
+
 public class GreaterThanOrEqualCondition extends CoerciveComparitorCondition {
 
     public GreaterThanOrEqualCondition(GraphDatabase graphDatabase, Condition c1, Condition c2) {
