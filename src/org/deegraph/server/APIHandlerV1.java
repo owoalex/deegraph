@@ -234,6 +234,7 @@ public class APIHandlerV1 implements HttpHandler {
                                             nodeList.put(nodeJsonRepr);
                                         }
                                         response.put("@nodes", nodeList);
+                                        this.graphDatabase.recordQuery(query);
                                         break;
                                     }
                                     case DELETE: {

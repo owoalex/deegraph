@@ -40,7 +40,22 @@ public class PutQuery extends Query {
                     }
                     break;
                 case "AT":
+                    if (into != null || as != null) {
+                        throw new QueryException(QueryExceptionCode.INVALID_COMBINATION, "Cannot assign 'AT' when 'INTO' or 'AS' is already set");
+                    }
                     at = parsedQuery.poll();
+                    break;
+                case "INTO":
+                    if (at != null) {
+                        throw new QueryException(QueryExceptionCode.INVALID_COMBINATION, "Cannot assign 'INTO' when 'AT' is already set");
+                    }
+                    into = parsedQuery.poll();
+                    break;
+                case "AS":
+                    if (at != null) {
+                        throw new QueryException(QueryExceptionCode.INVALID_COMBINATION, "Cannot assign 'AS' when 'AT' is already set");
+                    }
+                    as = parsedQuery.poll();
                     break;
                 case "SAFE":
                     overwrite = false;

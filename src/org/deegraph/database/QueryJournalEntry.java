@@ -67,6 +67,9 @@ public class QueryJournalEntry extends JournalEntry {
                 case DELETE:
                     ((DeleteQuery) q).runDeleteQuery(graphDatabase);
                     break;
+                case INSERT:
+                    ((InsertQuery) q).runInsertQuery(graphDatabase);
+                    break;
             }
         } catch (NoSuchMethodException e) {
             throw new RuntimeException(e);

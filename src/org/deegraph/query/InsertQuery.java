@@ -21,9 +21,11 @@ public class InsertQuery extends Query {
         String current = parsedQuery.poll();
         ArrayList<String> keys = new ArrayList<>();
         ArrayList<String> values = new ArrayList<>();
+        ArrayList<String> schemas = new ArrayList<>();
         String into = null;
         boolean innerEscape = false;
         boolean duplicate = false;
+        boolean replace = false;
         while (!escape) {
             switch (current.toUpperCase(Locale.ROOT)) {
                 case "KEYS":
@@ -41,12 +43,38 @@ public class InsertQuery extends Query {
                         parsedQuery.addFirst(current);
                     }
                     break;
+                case "SCHEMAS":
+                    innerEscape = false;
+                    while (!innerEscape) {
+                        current = parsedQuery.poll();
+                        if (current.startsWith("\"") && current.endsWith("\"")) {
+                            current = current.substring(1, current.length() - 1);
+                        } else {
+                            if (current.toLowerCase(Locale.ROOT).equals("null")) {
+                                current = null;
+                            }
+                        }
+                        schemas.add(current);
+                        current = parsedQuery.poll();
+                        if (current == null) {
+                            break;
+                        }
+                        innerEscape = !(current.trim().equals(","));
+                    }
+                    if (current != null) {
+                        parsedQuery.addFirst(current);
+                    }
+                    break;
                 case "VALUES":
                     innerEscape = false;
                     while (!innerEscape) {
                         current = parsedQuery.poll();
                         if (current.startsWith("\"") && current.endsWith("\"")) {
                             current = current.substring(1, current.length() - 1);
+                        } else {
+                            if (current.toLowerCase(Locale.ROOT).equals("null")) {
+                                current = null;
+                            }
                         }
                         values.add(current);
                         current = parsedQuery.poll();
@@ -65,6 +93,9 @@ public class InsertQuery extends Query {
                 case "DUPLICATE":
                     duplicate = true;
                     break;
+                case "REPLACE":
+                    replace = true;
+                    break;
                 default:
                     throw new QueryException(QueryExceptionCode.INVALID_CONTROL_WORD, "'" + current + "' is not a valid control word");
             }
@@ -75,12 +106,21 @@ public class InsertQuery extends Query {
         }
 
         boolean insertAsArray = false;
+        boolean applySchemas = true;
 
         if (keys.size() == 0) {
             insertAsArray = true;
         } else {
             if (keys.size() != values.size()) {
                 throw new QueryException(QueryExceptionCode.KEYS_DO_NOT_MAP_TO_VALUES);
+            }
+        }
+
+        if (schemas.size() == 0) {
+            applySchemas = false;
+        } else {
+            if (schemas.size() != values.size()) {
+                throw new QueryException(QueryExceptionCode.SCHEMAS_DO_NOT_MAP_TO_VALUES);
             }
         }
 
@@ -91,20 +131,31 @@ public class InsertQuery extends Query {
         for (int i = 0; i < values.size(); i++) {
             String value = values.get(i);
             String key = "#";
+            String schema = null;
             if (!insertAsArray) {
                 key = keys.get(i);
             }
+            if (applySchemas) {
+                schema = schemas.get(i);
+            }
             Node newNode = null;
             if (!duplicate) {
-                newNode = graphDatabase.newNode(value, this.actor, null);
+                newNode = graphDatabase.newNode(value, this.actor, schema);
                 newNodes.add(newNode);
             }
             for (Node node: nodes) {
                 if (duplicate) {
-                    newNode = graphDatabase.newNode(value, this.actor, null);
+                    newNode = graphDatabase.newNode(value, this.actor, schema);
                     newNodes.add(newNode);
                 }
-                node.addProperty(new SecurityContext(graphDatabase, this.actor), key, newNode);
+                if ((!key.equals("#")) && node.hasProperty(new SecurityContext(graphDatabase, this.actor), key)) {
+                    if (replace) {
+                        node.removeProperty(new SecurityContext(graphDatabase, this.actor), key);
+                        node.addProperty(new SecurityContext(graphDatabase, this.actor), key, newNode);
+                    }
+                } else {
+                    node.addProperty(new SecurityContext(graphDatabase, this.actor), key, newNode);
+                }
             }
         }
 
