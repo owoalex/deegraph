@@ -1,6 +1,7 @@
 package org.deegraph.query;
 
 import org.deegraph.database.*;
+import org.deegraph.exceptions.ClosedJournalException;
 import org.deegraph.exceptions.DuplicatePropertyException;
 
 import java.text.ParseException;
@@ -12,7 +13,7 @@ public class UnlinkQuery extends Query {
         super(src, actor);
     }
 
-    public boolean runUnlinkQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException {
+    public boolean runUnlinkQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException, ClosedJournalException {
         if (this.queryType != QueryType.UNLINK) {
             throw new NoSuchMethodException();
         }
@@ -61,13 +62,19 @@ public class UnlinkQuery extends Query {
         }
 
         if (parentNode.hasProperty(new SecurityContext(graphDatabase, this.actor), firstString)) {
-            return parentNode.removeProperty(new SecurityContext(graphDatabase, this.actor), firstString);
+            if (parentNode.removeProperty(new SecurityContext(graphDatabase, this.actor), firstString)) {
+                graphDatabase.getOpenJournal().registerEntry(new RemoveRelationJournalEntry(this.actor, parentNode, firstString));
+                return true;
+            } else {
+                return false;
+            }
         } else {
             boolean oneFound = false;
             HashMap<String, Node> props = parentNode.getProperties(new SecurityContext(graphDatabase, this.actor));
             for (String key : props.keySet()) {
                 if (props.get(key).equals(childNode)) {
                     parentNode.removeProperty(new SecurityContext(graphDatabase, this.actor), firstString);
+                    graphDatabase.getOpenJournal().registerEntry(new RemoveRelationJournalEntry(this.actor, parentNode, firstString));
                     oneFound = true;
                 }
             }

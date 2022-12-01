@@ -1,6 +1,7 @@
 package org.deegraph.query;
 
 import org.deegraph.database.*;
+import org.deegraph.exceptions.ClosedJournalException;
 import org.deegraph.exceptions.DuplicatePropertyException;
 
 import java.text.ParseException;
@@ -12,7 +13,7 @@ public class InsertQuery extends Query {
         super(src, actor);
     }
 
-    public Node[] runInsertQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException {
+    public Node[] runInsertQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException, ClosedJournalException {
         if (this.queryType != QueryType.INSERT) {
             throw new NoSuchMethodException();
         }
@@ -151,10 +152,13 @@ public class InsertQuery extends Query {
                 if ((!key.equals("#")) && node.hasProperty(new SecurityContext(graphDatabase, this.actor), key)) {
                     if (replace) {
                         node.removeProperty(new SecurityContext(graphDatabase, this.actor), key);
+                        graphDatabase.getOpenJournal().registerEntry(new RemoveRelationJournalEntry(this.actor, node, key));
                         node.addProperty(new SecurityContext(graphDatabase, this.actor), key, newNode);
+                        graphDatabase.getOpenJournal().registerEntry(new AddRelationJournalEntry(this.actor, node, key, newNode));
                     }
                 } else {
                     node.addProperty(new SecurityContext(graphDatabase, this.actor), key, newNode);
+                    graphDatabase.getOpenJournal().registerEntry(new AddRelationJournalEntry(this.actor, node, key, newNode));
                 }
             }
         }

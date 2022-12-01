@@ -9,7 +9,17 @@ public class Main {
     public static void main(String[] args) throws Exception {
         System.out.println("Starting server");
 
-        GraphDatabase graphDatabase = new GraphDatabase("./config.json");
+        String configFile = "./config.json";
+
+        //for (String arg : args) {
+        //    System.out.println(arg);
+        //}
+
+        if (args.length > 0) {
+            configFile = args[0];
+        }
+
+        GraphDatabase graphDatabase = new GraphDatabase(configFile);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {

@@ -35,7 +35,7 @@ import com.sun.net.httpserver.HttpsExchange;
 
 public class APIServer {
     private GraphDatabase graphDatabase;
-    private static String DEFAULT_ROOT_SITE = "<!DOCTYPE html><html><head><title>Welcome to DDS!</title><style>body {width: 35em; margin: 0 auto; font-family: Tahoma, Verdana, Arial, sans-serif;}</style></head><body><h1>Welcome to DDS!</h1><p>If you see this page, the DDS REST API server is successfully installed and working. Further configuration is required.</p><p>For online documentation and support please refer to <a href=\"https://dds.indentationerror.com/\">dds.indentationerror.com</a></p><p><em>Thank you for using DDS.</em></p></body></html>";
+    private static String DEFAULT_ROOT_SITE = "<!DOCTYPE html><html><head><title>Welcome to deegraph!</title><style>body {width: 35em; margin: 0 auto; font-family: Tahoma, Verdana, Arial, sans-serif;}</style></head><body><h1>Welcome to deegraph!</h1><p>If you see this page, the deegraph REST API server is successfully installed and working. Further configuration is required.</p><p>For online documentation and support please refer to <a href=\"https://deegraph.org/\">deegraph.org</a></p><p><em>Thank you for using deegraph.</em></p></body></html>";
     public static class RootHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange t) throws IOException {

@@ -1,6 +1,7 @@
 package org.deegraph.query;
 
 import org.deegraph.database.*;
+import org.deegraph.exceptions.ClosedJournalException;
 import org.deegraph.exceptions.DuplicatePropertyException;
 
 import java.text.ParseException;
@@ -11,7 +12,7 @@ public class LinkQuery extends Query {
         super(src, actor);
     }
 
-    public boolean runLinkQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException {
+    public boolean runLinkQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException, ClosedJournalException {
         if (this.queryType != QueryType.LINK) {
             throw new NoSuchMethodException();
         }
@@ -63,6 +64,7 @@ public class LinkQuery extends Query {
         }
 
         toNode.addProperty(new SecurityContext(graphDatabase, this.actor), linkName, valueNode, overwrite);
+        graphDatabase.getOpenJournal().registerEntry(new AddRelationJournalEntry(this.actor, toNode, linkName, valueNode));
         //System.out.println("Attempting link");
 
         return true;

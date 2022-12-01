@@ -1,5 +1,6 @@
 package org.deegraph.database;
 
+import org.deegraph.exceptions.ClosedJournalException;
 import org.deegraph.exceptions.DuplicatePropertyException;
 import org.deegraph.query.*;
 import org.json.JSONObject;
@@ -76,6 +77,8 @@ public class QueryJournalEntry extends JournalEntry {
         } catch (QueryException e) {
             throw new RuntimeException(e);
         } catch (DuplicatePropertyException e) {
+            throw new RuntimeException(e);
+        } catch (ClosedJournalException e) {
             throw new RuntimeException(e);
         }
         return false;

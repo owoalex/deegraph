@@ -56,6 +56,10 @@ public abstract class JournalEntry {
                 return NewNodeJournalEntry.fromJson(input);
             case "QUERY":
                 return QueryJournalEntry.fromJson(input);
+            case "ADD_RELATION":
+                return AddRelationJournalEntry.fromJson(input);
+            case "REMOVE_RELATION":
+                return RemoveRelationJournalEntry.fromJson(input);
             case "TRUST_KEY":
                 return TrustKeyJournalEntry.fromJson(input);
             default:

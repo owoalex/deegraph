@@ -191,7 +191,6 @@ public class APIHandlerV1 implements HttpHandler {
                                     case LINK: {
                                         if (((LinkQuery) query).runLinkQuery(this.graphDatabase)) {
                                             response.put("@response", "OK");
-                                            this.graphDatabase.recordQuery(query);
                                         } else {
                                             response.put("@error", "FailedToLink");
                                         }
@@ -200,7 +199,6 @@ public class APIHandlerV1 implements HttpHandler {
                                     case UNLINK: {
                                         if (((UnlinkQuery) query).runUnlinkQuery(this.graphDatabase)) {
                                             response.put("@response", "OK");
-                                            this.graphDatabase.recordQuery(query);
                                         } else {
                                             response.put("@error", "FailedToUnlink");
                                         }
@@ -234,7 +232,7 @@ public class APIHandlerV1 implements HttpHandler {
                                             nodeList.put(nodeJsonRepr);
                                         }
                                         response.put("@nodes", nodeList);
-                                        this.graphDatabase.recordQuery(query);
+                                        //this.graphDatabase.recordQuery(query); Results in broken nodes with changing uuids
                                         break;
                                     }
                                     case DELETE: {

@@ -412,7 +412,7 @@ public class GraphDatabase {
         //System.out.println("RQ: " + query.toString());
     }
 
-    private JournalSegment getOpenJournal() {
+    public JournalSegment getOpenJournal() {
         if (currentJournalSegment.getOpenDate().before(new Date(System.currentTimeMillis() - maxJournalAgeMs))) {
             try {
                 currentJournalSegment.close();
