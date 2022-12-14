@@ -113,6 +113,9 @@ public class Query {
             case "SELECT":
                 this.queryType = QueryType.SELECT;
                 break;
+            case "SELECTNODE":
+                this.queryType = QueryType.SELECT_NODE;
+                break;
             case "LN":
             case "LINK":
                 this.queryType = QueryType.LINK;
@@ -155,6 +158,8 @@ public class Query {
                 return new GrantQuery(query, actor);
             case "SELECT":
                 return new SelectQuery(query, actor);
+            case "SELECTNODE":
+                return new SelectNodeQuery(query, actor);
             case "LN":
             case "LINK":
                 return new LinkQuery(query, actor);

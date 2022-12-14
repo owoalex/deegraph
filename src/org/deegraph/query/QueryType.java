@@ -10,5 +10,5 @@ public enum QueryType {
     PUT,
     DIRECTORY,
     REFERENCES,
-    PERMISSIONS
+    SELECT_NODE, PERMISSIONS
 }

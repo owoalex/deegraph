@@ -154,7 +154,10 @@ public class APIHandlerV1 implements HttpHandler {
                                         break;
                                     }
                                     case SELECT: {
-                                        Tuple<Map<UUID, Map<String, Map<AbsoluteNodePath, Node>>>, List<UUID>> compoundResult = ((SelectQuery) query).runSelectQuery(this.graphDatabase);
+                                        break;
+                                    }
+                                    case SELECT_NODE: {
+                                        Tuple<Map<UUID, Map<String, Map<AbsoluteNodePath, Node>>>, List<UUID>> compoundResult = ((SelectNodeQuery) query).runSelectNodeQuery(this.graphDatabase);
                                         Map<UUID, Map<String, Map<AbsoluteNodePath, Node>>> results = compoundResult.x;
                                         JSONObject outputMap = new JSONObject();
                                         for (UUID rowId : results.keySet()) {
