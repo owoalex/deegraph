@@ -33,13 +33,13 @@ public class PermissionSystemTests {
         nodeB.addProperty(new SecurityContext(gdb, originalCreator), "substance" ,nodeD);
 
         RelativeNodePath rnp = new RelativeNodePath("{" + nodeB.getId() + "}/topping");
-        Node[] allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, originalCreator), new NodePathContext(originalCreator, null), gdb.getAllNodesUnsafe());
+        Node[] allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, originalCreator), new NodePathContext(originalCreator), gdb.getAllNodesUnsafe());
         for (Node node: allNodes) {
             assertEquals(node.getData(new SecurityContext(gdb, originalCreator)), "beans");
         }
 
         rnp = new RelativeNodePath("{" + nodeB.getId() + "}/substance");
-        allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, originalCreator), new NodePathContext(originalCreator, null), gdb.getAllNodesUnsafe());
+        allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, originalCreator), new NodePathContext(originalCreator), gdb.getAllNodesUnsafe());
         for (Node node: allNodes) {
             assertEquals(node.getData(new SecurityContext(gdb, originalCreator)), "toast");
         }
@@ -47,7 +47,7 @@ public class PermissionSystemTests {
         Node otherActor = gdb.newNode(null, gdb.getInstanceNode(), null);
 
         rnp = new RelativeNodePath("{" + nodeB.getId() + "}/substance");
-        allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, otherActor), new NodePathContext(otherActor, null), gdb.getAllNodesUnsafe());
+        allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, otherActor), new NodePathContext(otherActor), gdb.getAllNodesUnsafe());
         assertEquals(allNodes.length, 0);
     }
 }

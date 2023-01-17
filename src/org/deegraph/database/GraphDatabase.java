@@ -493,10 +493,17 @@ public class GraphDatabase {
             if (Arrays.asList(rule.getAuthorizableActions()).contains(AuthorizedAction.READ)) {
                 for (Node candidate: allNodes) {
                     Authorization auth = rule.getAuthorization(this, actor, candidate);
-                    for (RelativeNodePath relativeNodePath: auth.getValidPaths()) {
-                        List<Node> newValidNodes = Arrays.asList(relativeNodePath.getMatchingNodes(new SecurityContext(this, this.getInstanceNode()), new NodePathContext(actor, candidate), searchSpace.toArray(new Node[0])));
-                        searchSpace.removeAll(newValidNodes);
-                        validNodes.addAll(newValidNodes);
+                    if (auth != null) {
+                        if (auth.getValidPaths() == null) { // Special case, authorisation is global
+                            searchSpace.remove(candidate);
+                            validNodes.add(candidate);
+                        } else {
+                            for (RelativeNodePath relativeNodePath : auth.getValidPaths()) {
+                                List<Node> newValidNodes = Arrays.asList(relativeNodePath.getMatchingNodes(new SecurityContext(this, this.getInstanceNode()), new NodePathContext(actor, candidate), searchSpace.toArray(new Node[0])));
+                                searchSpace.removeAll(newValidNodes);
+                                validNodes.addAll(newValidNodes);
+                            }
+                        }
                     }
                 }
             }

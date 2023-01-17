@@ -31,7 +31,7 @@ public class UnlinkQuery extends Query {
                     String fromStrPath = parsedQuery.poll();
                     RelativeNodePath fromRelPath = new RelativeNodePath(fromStrPath);
                     if (fromRelPath != null) {
-                        Node[] parentNodes = fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodesUnsafe());
+                        Node[] parentNodes = fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor), graphDatabase.getAllNodesUnsafe());
                         parentNode = (parentNodes.length == 1) ? parentNodes[0] : null;
                     } else {
                         throw new RuntimeException("Error parsing '" + fromStrPath + "' as path") ;

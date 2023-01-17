@@ -154,6 +154,19 @@ public class APIHandlerV1 implements HttpHandler {
                                         break;
                                     }
                                     case SELECT: {
+                                        List<Map<String, Tuple<String, String>>> result = ((SelectQuery) query).runSelectQuery(this.graphDatabase);
+                                        JSONArray outputArray = new JSONArray();
+                                        for (Map<String, Tuple<String, String>> row : result) {
+                                            JSONObject outputRow = new JSONObject();
+                                            for (String colKey : row.keySet()) {
+                                                JSONObject kvpair = new JSONObject();
+                                                kvpair.put(row.get(colKey).x, (row.get(colKey).y == null) ? JSONObject.NULL : row.get(colKey).y);
+                                                outputRow.put(colKey, kvpair);
+                                            }
+                                            outputArray.put(outputRow);
+                                        }
+                                        response.put("@rows", outputArray);
+                                        response.put("@row_format", "DERIVED_KEY/PATH:STRING_VALUE");
                                         break;
                                     }
                                     case SELECT_NODE: {

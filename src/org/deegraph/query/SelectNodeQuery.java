@@ -69,7 +69,7 @@ public class SelectNodeQuery extends Query {
         } else {
             RelativeNodePath fromRelPath = new RelativeNodePath(fromLimit);
             if (fromRelPath != null) {
-                candidateNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodesUnsafe())));
+                candidateNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor), graphDatabase.getAllNodesUnsafe())));
             } else {
                 throw new RuntimeException("Error parsing '" + fromLimit + "' as path") ;
             }

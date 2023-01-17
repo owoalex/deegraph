@@ -28,13 +28,13 @@ public class BasicTests {
         nodeB.addProperty(new SecurityContext(gdb, actor), "substance" ,nodeD);
 
         RelativeNodePath rnp = new RelativeNodePath("{" + nodeB.getId() + "}/topping");
-        Node[] allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, actor), new NodePathContext(actor, null), gdb.getAllNodesUnsafe());
+        Node[] allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, actor), new NodePathContext(actor), gdb.getAllNodesUnsafe());
         for (Node node: allNodes) {
             assertEquals(node.getData(new SecurityContext(gdb, actor)), "beans");
         }
 
         rnp = new RelativeNodePath("{" + nodeB.getId() + "}/substance");
-        allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, actor), new NodePathContext(actor, null), gdb.getAllNodesUnsafe());
+        allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, actor), new NodePathContext(actor), gdb.getAllNodesUnsafe());
         for (Node node: allNodes) {
             assertEquals(node.getData(new SecurityContext(gdb, actor)), "toast");
         }
@@ -44,13 +44,13 @@ public class BasicTests {
         gdb = TestUtilities.reloadTestDb();
 
         rnp = new RelativeNodePath("{" + nodeB.getId() + "}/topping");
-        allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, actor), new NodePathContext(actor, null), gdb.getAllNodesUnsafe());
+        allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, actor), new NodePathContext(actor), gdb.getAllNodesUnsafe());
         for (Node node: allNodes) {
             assertEquals(node.getData(new SecurityContext(gdb, actor)), "beans");
         }
 
         rnp = new RelativeNodePath("{" + nodeB.getId() + "}/substance");
-        allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, actor), new NodePathContext(actor, null), gdb.getAllNodesUnsafe());
+        allNodes = rnp.getMatchingNodes(new SecurityContext(gdb, actor), new NodePathContext(actor), gdb.getAllNodesUnsafe());
         for (Node node: allNodes) {
             assertEquals(node.getData(new SecurityContext(gdb, actor)), "toast");
         }

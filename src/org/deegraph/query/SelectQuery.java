@@ -2,6 +2,7 @@ package org.deegraph.query;
 
 import org.deegraph.conditions.Condition;
 import org.deegraph.database.*;
+import org.deegraph.exceptions.InvalidMetaPropertyException;
 import org.deegraph.formats.Tuple;
 import org.deegraph.formats.TypeCoercionUtilities;
 
@@ -15,11 +16,12 @@ public class SelectQuery extends Query {
         super(src, actor);
     }
 
-    public Tuple<Map<UUID, Map<String, Map<AbsoluteNodePath, Node>>>, List<UUID>> runSelectQuery(GraphDatabase graphDatabase) throws ParseException, NoSuchMethodException {
+    public List<Map<String, Tuple<String, String>>> runSelectQuery(GraphDatabase graphDatabase) throws ParseException, NoSuchMethodException, InvalidMetaPropertyException {
         if (this.queryType != QueryType.SELECT) {
             throw new NoSuchMethodException();
         }
 
+        SecurityContext securityContext = new SecurityContext(graphDatabase, this.actor);
         ArrayList<String> requestedProperties = new ArrayList<>();
         boolean escape = false;
         String current = null;
@@ -36,7 +38,7 @@ public class SelectQuery extends Query {
         String schemaLimit = null;
         String fromLimit = null;
         String orderBy = null;
-        ArrayList<Node> candidateNodes = null;
+        List<AbsoluteNodePath> candidateNodes = null;
         escape = (current == null);
         while (!escape) {
             switch (current.toUpperCase(Locale.ROOT)) {
@@ -61,15 +63,17 @@ public class SelectQuery extends Query {
             }
         }
 
-        Map<UUID, Map<String, Map<AbsoluteNodePath, Node>>> outputMaps = new HashMap<>();
+
+
+        List<Map<String, Tuple<String, String>>> output = new ArrayList<>();
 
         if (fromLimit == null) {
             candidateNodes = new ArrayList<>();
-            candidateNodes.add(this.actor);
+            candidateNodes.add(new AbsoluteNodePath("{" + this.actor.getId() + "}"));
         } else {
             RelativeNodePath fromRelPath = new RelativeNodePath(fromLimit);
             if (fromRelPath != null) {
-                candidateNodes = new ArrayList<>(Arrays.asList(fromRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodesUnsafe())));
+                candidateNodes = fromRelPath.getMatchingPathMap(securityContext, new NodePathContext(this.actor, this.actor), null);
             } else {
                 throw new RuntimeException("Error parsing '" + fromLimit + "' as path") ;
             }
@@ -79,9 +83,9 @@ public class SelectQuery extends Query {
             if (schemaLimit.startsWith("\"") && schemaLimit.endsWith("\"")) {
                 schemaLimit = schemaLimit.substring(1, schemaLimit.length() - 1);
             }
-            ArrayList<Node> newCandidates = new ArrayList<>();
-            for (Node candidate : candidateNodes) {
-                if (schemaLimit.equals(candidate.getSchema())) {
+            List<AbsoluteNodePath> newCandidates = new ArrayList<>();
+            for (AbsoluteNodePath candidate : candidateNodes) {
+                if (schemaLimit.equals(candidate.getNode(securityContext).getSchema())) {
                     newCandidates.add(candidate);
                 }
             }
@@ -89,73 +93,39 @@ public class SelectQuery extends Query {
         }
 
         if (condition != null) {
-            ArrayList<Node> newCandidates = new ArrayList<>();
-            for (Node candidate : candidateNodes) {
-                if (condition.eval(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, candidate))) {
+            List<AbsoluteNodePath> newCandidates = new ArrayList<>();
+            for (AbsoluteNodePath candidate : candidateNodes) {
+                if (condition.eval(securityContext, new NodePathContext(this.actor, candidate.getNode(securityContext)))) {
                     newCandidates.add(candidate);
                 }
             }
             candidateNodes = newCandidates;
         }
 
-        for (Node candidate : candidateNodes) { // Expand the output to provide every node
-            Map<String, Map<AbsoluteNodePath, Node>> resultRepresentation = new HashMap<>();
+        for (AbsoluteNodePath candidate : candidateNodes) { // Expand the output to provide every node
+            Map<String, Tuple<String, String>> resultRepresentation = new HashMap<>();
             for (String property : requestedProperties) {
-                Map<AbsoluteNodePath, Node> matches = new RelativeNodePath(property).getMatchingNodeMap(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, candidate), null);
-                resultRepresentation.put(property, matches);
-            }
-            outputMaps.put(candidate.getId(), resultRepresentation);
-        }
-
-        List<UUID> order = null;
-
-        if (orderBy != null) {
-            boolean absolute = orderBy.startsWith("/");
-            String[] components = orderBy.split("/");
-            String prop = "@data";
-            if (components[components.length - 1].startsWith("@")) {
-                prop = components[components.length - 1];
-                orderBy = String.join("/", Arrays.copyOfRange(components, 0, components.length - 1));
-                if (!absolute && orderBy.length() == 0) {
-                    orderBy = "."; // Special case, empty strings resulting from removing an @ property should be changed to a cd operator
-                }
-            }
-            if (absolute) {
-                orderBy = "/" + orderBy;
-            }
-
-            RelativeNodePath orderByPath = new RelativeNodePath(orderBy);
-
-            order = new ArrayList<>();
-            if (orderByPath != null) {
-                TreeMap<Double, List<UUID>> priorityMap = new TreeMap<>();
-                SecurityContext securityContext = new SecurityContext(graphDatabase, this.actor);
-                for (Node candidate : candidateNodes) { // Expand the output to provide every node
-                    double priority = 0;
-                    Node[] matchingNodes = orderByPath.getMatchingNodes(securityContext, new NodePathContext(this.actor, candidate), null);
-                    if (matchingNodes.length > 0) {
-                        //matchingNodes[0]
-                        try {
-                            priority = TypeCoercionUtilities.coerceToNumber(metaProp(graphDatabase, matchingNodes[0], prop, this.actor));
-                        } catch (NumberFormatException e) {
-                            priority = 0;
+                List<AbsoluteNodePath> matches = new RelativeNodePath(property).getMatchingPathMap(securityContext, new NodePathContext(this.actor, candidate), null);
+                //resultRepresentation.put(property, matches);
+                for (AbsoluteNodePath match : matches) {
+                    String path = match.toString();
+                    String[] propertyComponents = property.split("/");
+                    String[] pathComponents = path.split("/");
+                    for (int i = propertyComponents.length-1; i >= 0; i--) {
+                        if (propertyComponents[i].equals("*") || propertyComponents[i].equals("#")) {
+                            propertyComponents[i] = pathComponents[i + (pathComponents.length - propertyComponents.length)];
                         }
                     }
-                    if (!priorityMap.containsKey(priority)) {
-                        priorityMap.put(priority, new ArrayList<>());
-                    }
-                    priorityMap.get(priority).add(candidate.getId());
+                    String bin = String.join("/", propertyComponents);
+                    String value = match.eval(new SecurityContext(graphDatabase, this.actor));
+                    resultRepresentation.put(bin, new Tuple<>(path, value));
                 }
-                SortedSet<Double> keys = new TreeSet<>(priorityMap.keySet());
-                for (Double priority : keys) {
-                    order.addAll(priorityMap.get(priority));
-                }
-            } else {
-                throw new RuntimeException("Error parsing '" + orderBy + "' as path") ;
             }
+            output.add(resultRepresentation);
         }
 
-        return new Tuple<>(outputMaps, order);
+
+        return output;
     }
 
 }

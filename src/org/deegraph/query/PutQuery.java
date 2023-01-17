@@ -83,7 +83,7 @@ public class PutQuery extends Query {
             }
             RelativeNodePath intoRelPath = new RelativeNodePath(into);
             if (intoRelPath != null) {
-                Node[] toNodes = intoRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, null), graphDatabase.getAllNodesUnsafe());
+                Node[] toNodes = intoRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor), graphDatabase.getAllNodesUnsafe());
                 if (toNodes.length == 1) {
                     toNodes[0].addProperty(new SecurityContext(graphDatabase, this.actor), as, newNode, overwrite);
                 }
