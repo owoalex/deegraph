@@ -258,8 +258,10 @@ public class JournalSegment {
 
         while (this.segmentActions.isEmpty() == false) {
             JournalEntry currentEntry = segmentActions.poll();
-            JSONObject entryJson = currentEntry.asJson();
-            journalOutput.put(entryJson);
+            if (currentEntry != null) {
+                JSONObject entryJson = currentEntry.asJson();
+                journalOutput.put(entryJson);
+            }
         }
 
         String stringJournal = journalOutput.toString(4).replaceAll("\r", "").replaceAll("\n", "\r\n").trim();
