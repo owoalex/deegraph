@@ -101,6 +101,8 @@ public class AbsoluteNodePath {
                                     break;
                                 case "@original_creator_id":
                                     return "{" + tailNode.getOCNodeId() + "}";
+                                case "@schema":
+                                    return tailNode.getSchema();
                                 case "@id":
                                     return "{" + tailNode.getId() + "}";
                                 case "@original_id":
