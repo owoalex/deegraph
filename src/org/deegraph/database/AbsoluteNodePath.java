@@ -124,7 +124,8 @@ public class AbsoluteNodePath {
                                     }
                                     break;
                                 case "@path":
-                                    return this.toString();
+                                    String[] slicedPath = Arrays.copyOfRange(pathComponents, 0, i);
+                                    return String.join("/", slicedPath);
                                 default:
                                     throw new InvalidMetaPropertyException(pathComponents[i].toLowerCase(Locale.ROOT));
                             }
