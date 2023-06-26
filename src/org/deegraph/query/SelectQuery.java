@@ -122,7 +122,9 @@ public class SelectQuery extends Query {
                     resultRepresentation.put(bin, new Tuple<>(path, value));
                 }
             }
-            output.add(resultRepresentation);
+            if (!resultRepresentation.isEmpty()) {
+                output.add(resultRepresentation);
+            }
         }
 
 
