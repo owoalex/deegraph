@@ -112,6 +112,7 @@ public class RelativeNodePath extends NodePath {
                         for (Node n : searchSpace) {
                             if (n != null) {
                                 output.add(new AbsoluteNodePath("{" + n.getId() + "}"));
+                                //System.out.println(n.getId());
                             }
                         }
                         return output;

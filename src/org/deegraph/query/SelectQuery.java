@@ -90,6 +90,7 @@ public class SelectQuery extends Query {
                 }
             }
             candidateNodes = newCandidates;
+            //System.out.println("Found " + candidateNodes.size() + " nodes that match schema");
         }
 
         if (condition != null) {

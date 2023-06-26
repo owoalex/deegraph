@@ -487,7 +487,7 @@ public class GraphDatabase {
         }
         ArrayList<Node> allNodes = new ArrayList<>(this.registeredNodes.values());
         ArrayList<Node> searchSpace = new ArrayList<>(this.registeredNodes.values());
-        ArrayList<Node> validNodes = new ArrayList<>();
+        HashSet<Node> validNodes = new HashSet<>();
 
         for (AuthorizationRule rule : this.authorizationRules) {
             if (Arrays.asList(rule.getAuthorizableActions()).contains(AuthorizedAction.READ)) {
@@ -508,6 +508,10 @@ public class GraphDatabase {
                 }
             }
         }
+        //HashSet<Node> uniqueValidNodes = new HashSet<>();
+        //for (Node n : validNodes) {
+        //    uniqueValidNodes.add
+        //}
         return validNodes.toArray(new Node[0]);
     }
 
