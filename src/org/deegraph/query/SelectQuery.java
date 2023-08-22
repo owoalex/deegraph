@@ -38,6 +38,7 @@ public class SelectQuery extends Query {
         String schemaLimit = null;
         String fromLimit = null;
         String orderBy = null;
+        boolean descending = false;
         List<AbsoluteNodePath> candidateNodes = null;
         escape = (current == null);
         while (!escape) {
@@ -50,6 +51,9 @@ public class SelectQuery extends Query {
                     break;
                 case "ORDERBY":
                     orderBy = parsedQuery.poll();
+                    break;
+                case "DESC":
+                    descending = true;
                     break;
                 case "WHERE":
                     condition = parseConditionFromRemaining(graphDatabase);
@@ -127,7 +131,9 @@ public class SelectQuery extends Query {
             }
         }
 
-
+        if (descending) {
+            Collections.reverse(output);
+        }
         return output;
     }
 

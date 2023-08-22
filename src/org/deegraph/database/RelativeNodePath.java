@@ -387,6 +387,10 @@ public class RelativeNodePath extends NodePath {
                     pathComponents = newArray;
                      */
 
+                    if (objectPath == null) {
+                        objectPath = "";
+                    }
+
                     String[] objectPathComponents = objectPath.replaceAll("\\\\$|^\\\\", "").split("/");
                     String[] newArray = Arrays.copyOf(pathComponents, pathComponents.length + objectPathComponents.length);
                     System.arraycopy(objectPathComponents, 0, newArray, 0, objectPathComponents.length);

@@ -72,9 +72,13 @@ public class PutQuery extends Query {
         Node newNode = graphDatabase.newNode(data, this.actor, schema);
 
         if (at != null) {
-            into = at.substring(0,at.lastIndexOf("/"));
-            as = at.substring(at.lastIndexOf("/"));
-            System.out.println(into + " : " + as);
+            if (at.lastIndexOf("/") == -1) {
+                as = at;
+            } else {
+                into = at.substring(0, at.lastIndexOf("/"));
+                as = at.substring(at.lastIndexOf("/") + 1);
+                System.out.println(into + " : " + as);
+            }
         }
 
         if (into != null) {

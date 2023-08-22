@@ -345,7 +345,7 @@ public class APIHandlerV1 implements HttpHandler {
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
             e.printStackTrace(pw);
-            response.put("error", sw.toString().replaceAll("\t", "    ").split("\n"));
+            response.put("trace", sw.toString().replaceAll("\t", "    ").split("\n"));
             responseCode = 500;
         }
 
