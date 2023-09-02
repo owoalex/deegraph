@@ -15,6 +15,10 @@ public class ReferencesQuery extends Query {
             throw new NoSuchMethodException();
         }
 
+        if (parsedQuery.size() == 0) {
+            parsedQuery.offer(".");
+        }
+
         Node[] valueNodes = new RelativeNodePath(parsedQuery.poll()).getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor), graphDatabase.getAllNodesUnsafe());
         Node valueNode = (valueNodes.length == 1) ? valueNodes[0] : null;
 

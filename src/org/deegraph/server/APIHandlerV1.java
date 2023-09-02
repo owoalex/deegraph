@@ -15,6 +15,7 @@ import java.io.*;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
 import java.text.DateFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -136,7 +137,7 @@ public class APIHandlerV1 implements HttpHandler {
                                     queryText = String.join("/", reconstruct);
                                 }
 
-                                Query query = Query.fromString(queryText, userNode);
+                                Query query = Query.fromString(queryText.trim(), userNode);
 
                                 //System.out.println(query.getQueryType());
 
@@ -277,7 +278,12 @@ public class APIHandlerV1 implements HttpHandler {
                                     }
                                 }
                             } catch (QueryException queryException) {
-                                response.put("@error", queryException.toString());
+                                response.put("@error", "QueryException");
+                                response.put("@error_type", queryException.getCode().toString());
+                                response.put("@error_message", queryException.getMessage());
+                            } catch (ParseException parseException) {
+                                response.put("@error", "ParseException");
+                                response.put("@error_message", parseException.getMessage());
                             }
                             break;
                         case "@new":

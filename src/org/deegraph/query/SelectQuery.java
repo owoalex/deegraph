@@ -25,6 +25,9 @@ public class SelectQuery extends Query {
         ArrayList<String> requestedProperties = new ArrayList<>();
         boolean escape = false;
         String current = null;
+        if (parsedQuery.size() == 0) {
+            throw new ParseException("Empty SELECT query", 0);
+        }
         while (!escape) {
             current = parsedQuery.poll();
             requestedProperties.add(current);
@@ -35,7 +38,7 @@ public class SelectQuery extends Query {
             escape = !(current.trim().equals(","));
         }
         Condition condition = null;
-        String schemaLimit = null;
+        ArrayList<String> schemaLimits = new ArrayList<>();
         String fromLimit = null;
         String orderBy = null;
         boolean descending = false;
@@ -47,7 +50,7 @@ public class SelectQuery extends Query {
                     fromLimit = parsedQuery.poll();
                     break;
                 case "INSTANCEOF":
-                    schemaLimit = parsedQuery.poll();
+                    schemaLimits.add(parsedQuery.poll());
                     break;
                 case "ORDERBY":
                     orderBy = parsedQuery.poll();
@@ -83,13 +86,16 @@ public class SelectQuery extends Query {
             }
         }
 
-        if (schemaLimit != null) { // Filter by INSTANCEOF first, as it's quite a cheap operation
-            if (schemaLimit.startsWith("\"") && schemaLimit.endsWith("\"")) {
-                schemaLimit = schemaLimit.substring(1, schemaLimit.length() - 1);
+        if (schemaLimits.size() > 0) { // Filter by INSTANCEOF first, as it's quite a cheap operation
+            ArrayList<String> validSchemas = new ArrayList<>();
+            for (String schemaLimit : schemaLimits) {
+                if (schemaLimit.startsWith("\"") && schemaLimit.endsWith("\"")) {
+                    validSchemas.add(schemaLimit.substring(1, schemaLimit.length() - 1));
+                }
             }
             List<AbsoluteNodePath> newCandidates = new ArrayList<>();
             for (AbsoluteNodePath candidate : candidateNodes) {
-                if (schemaLimit.equals(candidate.getNode(securityContext).getSchema())) {
+                if (validSchemas.contains(candidate.getNode(securityContext).getSchema())) {
                     newCandidates.add(candidate);
                 }
             }

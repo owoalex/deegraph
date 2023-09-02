@@ -15,9 +15,13 @@ public class LinkQuery extends Query {
         super(src, actor);
     }
 
-    public boolean runLinkQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException, ClosedJournalException {
+    public boolean runLinkQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException, ClosedJournalException, ParseException {
         if (this.queryType != QueryType.LINK) {
             throw new NoSuchMethodException();
+        }
+
+        if (parsedQuery.size() == 0) {
+            throw new ParseException("Empty LINK query", 0);
         }
 
         boolean escape = false;

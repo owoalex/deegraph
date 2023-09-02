@@ -13,9 +13,13 @@ public class UnlinkQuery extends Query {
         super(src, actor);
     }
 
-    public boolean runUnlinkQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException, ClosedJournalException {
+    public boolean runUnlinkQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException, ClosedJournalException, ParseException {
         if (this.queryType != QueryType.UNLINK) {
             throw new NoSuchMethodException();
+        }
+
+        if (parsedQuery.size() == 0) {
+            throw new ParseException("Empty UNLINK query", 0);
         }
 
         boolean escape = false;

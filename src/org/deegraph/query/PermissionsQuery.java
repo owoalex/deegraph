@@ -11,7 +11,7 @@ public class PermissionsQuery extends Query {
         super(src, actor);
     }
 
-    public AuthorizedAction[] runPermissionsQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException {
+    public AuthorizedAction[] runPermissionsQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, ParseException {
         if (this.queryType != QueryType.PERMISSIONS) {
             throw new NoSuchMethodException();
         }
@@ -21,6 +21,10 @@ public class PermissionsQuery extends Query {
         Node asNode = this.actor;
         String onNodePath = null;
         Node onNode = null;
+
+        if (parsedQuery.size() == 0) {
+            throw new ParseException("Empty PERMISSIONS query", 0);
+        }
 
         String current = parsedQuery.poll();
         while (!escape) {

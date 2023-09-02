@@ -11,13 +11,16 @@ public class PutQuery extends Query {
         super(src, actor);
     }
 
-    public Node runPutQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException {
+    public Node runPutQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException, ParseException {
         if (this.queryType != QueryType.PUT) {
             throw new NoSuchMethodException();
         }
 
         boolean escape = false;
         String current = parsedQuery.poll();
+        if (current == null) {
+            throw new ParseException("Empty PUT query", 0);
+        }
         String data = null;
         String at = null;
         String into = null;

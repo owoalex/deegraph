@@ -9,9 +9,13 @@ public class DeleteQuery extends Query {
         super(src, actor);
     }
 
-    public boolean runDeleteQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException {
+    public boolean runDeleteQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, ParseException {
         if (this.queryType != QueryType.DELETE) {
             throw new NoSuchMethodException();
+        }
+
+        if (parsedQuery.size() == 0) {
+            throw new ParseException("Empty DELETE query", 0);
         }
 
         Node[] valueNodes = new RelativeNodePath(parsedQuery.poll()).getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor), graphDatabase.getAllNodesUnsafe());
