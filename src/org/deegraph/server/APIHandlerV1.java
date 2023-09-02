@@ -106,6 +106,7 @@ public class APIHandlerV1 implements HttpHandler {
             }
             //System.out.println("BC: " + bodyContent);
 
+
             if (requestPath.length > 0) {
                 if (requestPath[0].startsWith("@")) {
                     switch (requestPath[0]) {
@@ -345,7 +346,8 @@ public class APIHandlerV1 implements HttpHandler {
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
             e.printStackTrace(pw);
-            response.put("trace", sw.toString().replaceAll("\t", "    ").split("\n"));
+            response.put("@error", "UnhandledException");
+            response.put("@trace", sw.toString().replaceAll("\t", "    ").split("\n"));
             responseCode = 500;
         }
 

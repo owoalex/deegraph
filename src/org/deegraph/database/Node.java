@@ -260,6 +260,7 @@ public class Node {
     }
 
     public boolean removeProperty(SecurityContext securityContext, String name) {
+        //System.out.println(name);
         if (Arrays.asList(securityContext.getDatabase().getPermsOnNode(securityContext.getActor(), this)).contains(AuthorizedAction.WRITE)) {
             return this.removePropertyUnsafe(name);
         }
@@ -293,7 +294,8 @@ public class Node {
         }
         return false;
     }
-    public void addProperty(SecurityContext securityContext, String name, Node node, boolean overwrite) throws DuplicatePropertyException {
+    public String addProperty(SecurityContext securityContext, String name, Node node, boolean overwrite) throws DuplicatePropertyException {
+        String outputName = name;
         // You need WRITE permissions on *both* source and destination to connect nodes.
         // This is an important security consideration so users cannot elevate their own privileges by putting a node in a context where they would gain WRITE privileges
         if (Arrays.asList(securityContext.getDatabase().getPermsOnNode(securityContext.getActor(), this)).contains(AuthorizedAction.WRITE)) {
@@ -321,7 +323,8 @@ public class Node {
                             }
                         }
                     }
-                    this.addPropertyUnsafe(String.valueOf(insertAt), node);
+                    outputName = String.valueOf(insertAt);
+                    this.addPropertyUnsafe(outputName, node);
                 } else {
                     throw new RuntimeException("Not a valid property name");
                 }
@@ -331,10 +334,11 @@ public class Node {
         } else {
             throw new RuntimeException("Missing write perms on {" + this.getId() + "}");
         }
+        return outputName;
     }
 
-    public void addProperty(SecurityContext securityContext, String name, Node node) throws DuplicatePropertyException {
-        this.addProperty(securityContext, name, node, false);
+    public String addProperty(SecurityContext securityContext, String name, Node node) throws DuplicatePropertyException {
+        return this.addProperty(securityContext, name, node, false);
     }
 
     public String getData(SecurityContext securityContext) {

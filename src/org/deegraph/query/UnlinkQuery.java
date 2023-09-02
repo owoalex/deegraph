@@ -73,8 +73,9 @@ public class UnlinkQuery extends Query {
             HashMap<String, Node> props = parentNode.getProperties(new SecurityContext(graphDatabase, this.actor));
             for (String key : props.keySet()) {
                 if (props.get(key).equals(childNode)) {
-                    parentNode.removeProperty(new SecurityContext(graphDatabase, this.actor), firstString);
-                    graphDatabase.getOpenJournal().registerEntry(new RemoveRelationJournalEntry(this.actor, parentNode, firstString));
+                    if (parentNode.removeProperty(new SecurityContext(graphDatabase, this.actor), firstString)) {
+                        graphDatabase.getOpenJournal().registerEntry(new RemoveRelationJournalEntry(this.actor, parentNode, firstString));
+                    }
                     oneFound = true;
                 }
             }
