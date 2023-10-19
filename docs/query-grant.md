@@ -1,5 +1,33 @@
 # GRANT Query
 
+Syntax: `GRANT <permission type>[, <permission type>]... ON <relative path> WHERE <condition> [DELEGATABLE]`
+
+Used to grant permissions on the database.
+
+## The DELEGATABLE directive
+
+Only DELEGATABLE permission grants can be given to ther users by non-root users.
+
+## Permission types
+
+### WRITE
+
+Allows a node to modify properties of a node, and to add or remove links.
+
+### READ
+
+Allows a node the ability to read a resource.
+
+### DELETE
+
+Allows destruction of nodes.
+
+### ACT
+
+Allows a node to act as though it was another node (assuming the target node's permissions, wether giving more or less permissions).
+
+## Examples
+
 Example 0:
 
 ```
