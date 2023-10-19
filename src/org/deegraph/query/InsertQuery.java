@@ -13,9 +13,13 @@ public class InsertQuery extends Query {
         super(src, actor);
     }
 
-    public Node[] runInsertQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException, ClosedJournalException {
+    public Node[] runInsertQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException, ClosedJournalException, ParseException {
         if (this.queryType != QueryType.INSERT) {
             throw new NoSuchMethodException();
+        }
+
+        if (parsedQuery.size() == 0) {
+            throw new ParseException("Empty INSERT query", 0);
         }
 
         boolean escape = false;

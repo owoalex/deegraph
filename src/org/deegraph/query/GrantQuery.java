@@ -16,6 +16,10 @@ public class GrantQuery extends Query {
             throw new NoSuchMethodException();
         }
 
+        if (parsedQuery.size() == 0) {
+            throw new ParseException("Empty GRANT query", 0);
+        }
+
         ArrayList<AuthorizedAction> actions = new ArrayList<>();
         boolean escape = false;
         String current = null;

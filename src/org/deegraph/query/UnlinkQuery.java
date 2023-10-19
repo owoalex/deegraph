@@ -13,9 +13,13 @@ public class UnlinkQuery extends Query {
         super(src, actor);
     }
 
-    public boolean runUnlinkQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException, ClosedJournalException {
+    public boolean runUnlinkQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException, ClosedJournalException, ParseException {
         if (this.queryType != QueryType.UNLINK) {
             throw new NoSuchMethodException();
+        }
+
+        if (parsedQuery.size() == 0) {
+            throw new ParseException("Empty UNLINK query", 0);
         }
 
         boolean escape = false;
@@ -73,8 +77,9 @@ public class UnlinkQuery extends Query {
             HashMap<String, Node> props = parentNode.getProperties(new SecurityContext(graphDatabase, this.actor));
             for (String key : props.keySet()) {
                 if (props.get(key).equals(childNode)) {
-                    parentNode.removeProperty(new SecurityContext(graphDatabase, this.actor), firstString);
-                    graphDatabase.getOpenJournal().registerEntry(new RemoveRelationJournalEntry(this.actor, parentNode, firstString));
+                    if (parentNode.removeProperty(new SecurityContext(graphDatabase, this.actor), firstString)) {
+                        graphDatabase.getOpenJournal().registerEntry(new RemoveRelationJournalEntry(this.actor, parentNode, firstString));
+                    }
                     oneFound = true;
                 }
             }
