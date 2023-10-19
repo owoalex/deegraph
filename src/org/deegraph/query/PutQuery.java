@@ -1,7 +1,9 @@
 package org.deegraph.query;
 
 import org.deegraph.database.*;
+import org.deegraph.exceptions.ClosedJournalException;
 import org.deegraph.exceptions.DuplicatePropertyException;
+import org.deegraph.exceptions.MissingNodeException;
 
 import java.text.ParseException;
 import java.util.Locale;
@@ -11,7 +13,7 @@ public class PutQuery extends Query {
         super(src, actor);
     }
 
-    public Node runPutQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException {
+    public Node runPutQuery(GraphDatabase graphDatabase) throws NoSuchMethodException, QueryException, DuplicatePropertyException, MissingNodeException, ClosedJournalException {
         if (this.queryType != QueryType.PUT) {
             throw new NoSuchMethodException();
         }
@@ -69,8 +71,6 @@ public class PutQuery extends Query {
             }
         }
 
-        Node newNode = graphDatabase.newNode(data, this.actor, schema);
-
         if (at != null) {
             if (at.lastIndexOf("/") == -1) {
                 as = at;
@@ -89,15 +89,29 @@ public class PutQuery extends Query {
             if (intoRelPath != null) {
                 Node[] toNodes = intoRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor), graphDatabase.getAllNodesUnsafe());
                 if (toNodes.length == 1) {
-                    toNodes[0].addProperty(new SecurityContext(graphDatabase, this.actor), as, newNode, overwrite);
+                    if (toNodes[0].hasProperty(new SecurityContext(graphDatabase, this.actor), as)) {
+                        if (overwrite) {
+                            throw new DuplicatePropertyException();
+                        } else {
+                            return null;
+                        }
+                    }
+                    Node newNode = graphDatabase.newNode(data, this.actor, schema);
+                    try {
+                        toNodes[0].addProperty(new SecurityContext(graphDatabase, this.actor), as, newNode, overwrite);
+                    } catch (DuplicatePropertyException e) {
+                        throw new RuntimeException("Possible race condition in safe property store, bailing out");
+                    }
+                    graphDatabase.getOpenJournal().registerEntry(new AddRelationJournalEntry(this.actor, toNodes[0], as, newNode));
+                    return newNode;
                 }
             } else {
                 throw new RuntimeException("Error parsing '" + into + "' as path");
             }
 
         }
-        //System.out.println(newNode.getCNode().getId());
 
-        return newNode;
+        throw new MissingNodeException(null);
+        //System.out.println(newNode.getCNode().getId());
     }
 }
