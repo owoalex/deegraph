@@ -91,7 +91,9 @@ public class PutQuery extends Query {
                 if (toNodes.length == 1) {
                     if (toNodes[0].hasProperty(new SecurityContext(graphDatabase, this.actor), as)) {
                         if (overwrite) {
-                            throw new DuplicatePropertyException();
+                            if (!toNodes[0].removeProperty(new SecurityContext(graphDatabase, this.actor), as)) {
+                                throw new DuplicatePropertyException(); // We couldn't remove the property to be overwritten, so fail!
+                            }
                         } else {
                             return null;
                         }
