@@ -112,29 +112,40 @@ public class InsertQuery extends Query {
 
         boolean insertAsArray = false;
         boolean applySchemas = true;
+        boolean hasValues = true;
+
+        int count = Math.max(Math.max(schemas.size(), values.size()), keys.size());
 
         if (keys.size() == 0) {
             insertAsArray = true;
         } else {
-            if (keys.size() != values.size()) {
-                throw new QueryException(QueryExceptionCode.KEYS_DO_NOT_MAP_TO_VALUES);
+            if (keys.size() != count) {
+                throw new QueryException(QueryExceptionCode.KEYS_DO_NOT_MAP_TO_NODES);
             }
         }
 
         if (schemas.size() == 0) {
             applySchemas = false;
         } else {
-            if (schemas.size() != values.size()) {
-                throw new QueryException(QueryExceptionCode.SCHEMAS_DO_NOT_MAP_TO_VALUES);
+            if (schemas.size() != count) {
+                throw new QueryException(QueryExceptionCode.SCHEMAS_DO_NOT_MAP_TO_NODES);
             }
         }
 
-        RelativeNodePath intoRelPath = new RelativeNodePath(into);
-        Node[] nodes = intoRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, this.actor), null);
+        if (values.size() == 0) {
+            hasValues = false;
+        } else {
+            if (values.size() != count) {
+                throw new QueryException(QueryExceptionCode.VALUES_DO_NOT_MAP_TO_NODES);
+            }
+        }
+
+        RelativeNodePath intoRelPath = (into == null) ? null : new RelativeNodePath(into);
+        Node[] nodes = (intoRelPath == null) ? new Node[0] : intoRelPath.getMatchingNodes(new SecurityContext(graphDatabase, this.actor), new NodePathContext(this.actor, this.actor), null);
         ArrayList<Node> newNodes = new ArrayList<>();
 
-        for (int i = 0; i < values.size(); i++) {
-            String value = values.get(i);
+        for (int i = 0; i < count; i++) {
+            String value = null;
             String key = "#";
             String schema = null;
             if (!insertAsArray) {
@@ -142,6 +153,9 @@ public class InsertQuery extends Query {
             }
             if (applySchemas) {
                 schema = schemas.get(i);
+            }
+            if (hasValues) {
+                value = values.get(i);
             }
             Node newNode = null;
             if (!duplicate) {
