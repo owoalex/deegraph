@@ -18,11 +18,14 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 
 import javax.net.ssl.SSLContext;
+import java.security.PrivateKey;
 import java.security.SecureRandom;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 
+import java.security.interfaces.ECPrivateKey;
 import java.security.interfaces.RSAPrivateKey;
+import java.security.spec.EllipticCurve;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.Base64;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -48,7 +51,7 @@ public class APIServer {
         }
     }
 
-    private static RSAPrivateKey readPrivateKey(File file) throws Exception {
+    private static PrivateKey readPrivateKey(File file, String algorithm) throws Exception {
         String key = new String(Files.readAllBytes(file.toPath()), Charset.defaultCharset());
 
         String privateKeyPEM = key
@@ -58,9 +61,9 @@ public class APIServer {
 
         byte[] encoded = Base64.getDecoder().decode(privateKeyPEM);
 
-        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        KeyFactory keyFactory = KeyFactory.getInstance(algorithm);
         PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(encoded);
-        return (RSAPrivateKey) keyFactory.generatePrivate(keySpec);
+        return keyFactory.generatePrivate(keySpec);
     }
 
     public APIServer(GraphDatabase graphDatabase) {
@@ -81,11 +84,15 @@ public class APIServer {
                 randomPassword[i] = options[random.nextInt(options.length)];
             }
 
+            Certificate[] fullChain = cf.generateCertificates(new FileInputStream(this.graphDatabase.getConfig().getJSONObject("ssl_certs").getString("full_chain"))).toArray(new Certificate[0]);
+            Certificate ourCert = fullChain[0];
+            //System.out.println();
+
             ks.setKeyEntry(
                     "serverCert",
-                    APIServer.readPrivateKey(new File(this.graphDatabase.getConfig().getJSONObject("ssl_certs").getString("private_key"))),
+                    APIServer.readPrivateKey(new File(this.graphDatabase.getConfig().getJSONObject("ssl_certs").getString("private_key")), ourCert.getPublicKey().getAlgorithm()),
                     randomPassword,
-                    cf.generateCertificates(new FileInputStream(this.graphDatabase.getConfig().getJSONObject("ssl_certs").getString("full_chain"))).toArray(new Certificate[0])
+                    fullChain
             );
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             tmf.init(ks);
