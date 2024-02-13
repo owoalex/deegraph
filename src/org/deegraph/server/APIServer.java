@@ -86,11 +86,11 @@ public class APIServer {
 
             Certificate[] fullChain = cf.generateCertificates(new FileInputStream(this.graphDatabase.getConfig().getJSONObject("ssl_certs").getString("full_chain"))).toArray(new Certificate[0]);
             Certificate ourCert = fullChain[0];
-            //System.out.println();
+            String algo = ourCert.getPublicKey().getAlgorithm();
 
             ks.setKeyEntry(
                     "serverCert",
-                    APIServer.readPrivateKey(new File(this.graphDatabase.getConfig().getJSONObject("ssl_certs").getString("private_key")), ourCert.getPublicKey().getAlgorithm()),
+                    APIServer.readPrivateKey(new File(this.graphDatabase.getConfig().getJSONObject("ssl_certs").getString("private_key")), algo),
                     randomPassword,
                     fullChain
             );
@@ -99,6 +99,14 @@ public class APIServer {
 
             KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             keyManagerFactory.init(ks, randomPassword);
+
+            switch (algo) {
+                case "EC":
+                    System.out.println("Using " + ourCert.getType() + " Elliptic Curve certificate for HTTPS API server");
+                    break;
+                default:
+                    System.out.println("Using " + ourCert.getType() + " " + algo + " certificate for HTTPS API server");
+            }
 
             SSLContext sslContext = SSLContext.getInstance("TLS");
             sslContext.init(keyManagerFactory.getKeyManagers(), tmf.getTrustManagers(), random);

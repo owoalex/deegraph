@@ -112,7 +112,7 @@ public class GraphDatabase {
         File jwkFile = new File(this.dbLocation + this.instanceId.toString() + ".private.jwk");
 
         if (jwkFile.exists() && jwkFile.isFile() && jwkFile.canRead()) {
-            System.out.println("Loading private key");
+            System.out.println("Loading instance private key from disk");
             jsonBuilder = new StringBuilder();
             try (BufferedReader br = new BufferedReader(new FileReader(jwkFile))) {
                 String currentLine;
@@ -126,14 +126,14 @@ public class GraphDatabase {
 
             try {
                 this.jwk = (OctetKeyPair) JWK.parse(jsonObject.toMap());
-                System.out.println("Private key loaded successfully");
+                System.out.println("Private " + this.jwk.getCurve().getName() + " key loaded successfully");
             } catch (ParseException e) {
                 throw new RuntimeException(e);
             }
         }
 
         if (this.jwk == null) {
-            System.out.println("Generating a private key for the server");
+            System.out.println("Generating a new Ed25519 private key for the server");
             JWKGenerator<OctetKeyPair> jwkGenerator = new OctetKeyPairGenerator(Curve.Ed25519);
             jwkGenerator.algorithm(new Algorithm("EdDSA"));
             jwkGenerator.keyUse(KeyUse.SIGNATURE);
@@ -152,7 +152,7 @@ public class GraphDatabase {
                 jwkWriter.write(jsonObject.toString(4));
                 jwkWriter.close();
                 Files.copy(publicJWKFile.toPath(), Paths.get(this.instanceId.toString() + ".public.jwk"), StandardCopyOption.REPLACE_EXISTING);
-                System.out.println("Private key OK");
+                System.out.println("Private key saved");
             } catch (JOSEException e) {
                 throw new RuntimeException(e);
             }
