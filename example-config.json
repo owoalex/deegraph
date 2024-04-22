@@ -1,0 +1,11 @@
+{
+    "fqdn": "example.deegraph.org",
+    "data_directory": "./dgdata/",
+    "ssl_certs": {
+        "private_key": "/path/to/privkey.pem",
+        "full_chain": "/path/to/fullchain.pem"
+    },
+    "port": 8088,
+    "root_auth_tokens": ["PUT_YOUR_TOKEN_HERE"],
+    "journal_lifetime": 60
+}
