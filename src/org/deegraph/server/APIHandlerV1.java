@@ -6,6 +6,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsExchange;
 import org.deegraph.database.*;
+import org.deegraph.exceptions.DuplicateNodeStoreException;
 import org.deegraph.formats.Tuple;
 import org.deegraph.query.*;
 import org.json.JSONArray;
@@ -32,6 +33,9 @@ public class APIHandlerV1 implements HttpHandler {
         df.setTimeZone(tz);
 
         JSONObject response = new JSONObject();
+        if (securityContext == null) {
+            return null;
+        }
         if (Arrays.asList(securityContext.getDatabase().getPermsOnNode(securityContext.getActor(), node)).contains(AuthorizedAction.READ)) {
             response.put("@id", node.getId());
             if (!node.getOriginalInstanceId().equals(this.graphDatabase.getInstanceId())) {
@@ -331,7 +335,11 @@ public class APIHandlerV1 implements HttpHandler {
                             break;
                     }
                     String[] reconstruct = Arrays.copyOfRange(requestPath, 0, range);
-                    tailNode = new RelativeNodePath(String.join("/", reconstruct)).toAbsolute(new NodePathContext(userNode, userNode)).getNodeFrom(this.graphDatabase, securityContext);
+                    if (userNode == null) {
+                        userNode = null;
+                    } else {
+                        tailNode = new RelativeNodePath(String.join("/", reconstruct)).toAbsolute(new NodePathContext(userNode, userNode)).getNodeFrom(this.graphDatabase, securityContext);
+                    }
                     //System.out.println(String.join("/", reconstruct));
                     //response.put("@request_path", String.join("/", reconstruct));
                 }
@@ -345,6 +353,11 @@ public class APIHandlerV1 implements HttpHandler {
                     response.put("@error", "NodeNotFound");
                 } else {
                     response = nodeToJson(securityContext, tailNode, false);
+                    if (response == null) {
+                        response = new JSONObject();
+                        responseCode = 404;
+                        response.put("@error", "NodeNotFound");
+                    }
                 }
             }
         } catch (Exception e) {
