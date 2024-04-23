@@ -11,11 +11,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.ParseException;
 import java.util.Comparator;
 
 public class TestUtilities {
     protected static final String TEST_CONFIG_FILE = "./test.json";
-    public static GraphDatabase initTestDb() throws UnvalidatedJournalSegment, IOException {
+    public static GraphDatabase initTestDb() throws UnvalidatedJournalSegment, IOException, ParseException {
         File configFile = new File(TEST_CONFIG_FILE);
         StringBuilder jsonBuilder = new StringBuilder();
         try (BufferedReader br = new BufferedReader(new FileReader(configFile))) {
@@ -37,7 +38,7 @@ public class TestUtilities {
         return new GraphDatabase(TEST_CONFIG_FILE, true);
     }
 
-    public static GraphDatabase reloadTestDb() throws UnvalidatedJournalSegment, IOException {
+    public static GraphDatabase reloadTestDb() throws UnvalidatedJournalSegment, IOException, ParseException {
         File configFile = new File(TEST_CONFIG_FILE);
         StringBuilder jsonBuilder = new StringBuilder();
         try (BufferedReader br = new BufferedReader(new FileReader(configFile))) {

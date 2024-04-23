@@ -58,11 +58,11 @@ public class GraphDatabase {
 
     private boolean debugMode = false;
 
-    public GraphDatabase(String configFilePath) throws UnvalidatedJournalSegment, IOException {
+    public GraphDatabase(String configFilePath) throws UnvalidatedJournalSegment, IOException, ParseException {
         this(configFilePath, false);
     }
 
-    public GraphDatabase(String configFilePath, boolean debugMode) throws UnvalidatedJournalSegment, IOException {
+    public GraphDatabase(String configFilePath, boolean debugMode) throws UnvalidatedJournalSegment, IOException, ParseException {
         this.debugMode = debugMode;
         File configFile = new File(configFilePath);
         StringBuilder jsonBuilder = new StringBuilder();
@@ -212,7 +212,7 @@ public class GraphDatabase {
         //}
 
         if (this.getConfig().has("root_auth_tokens")) {
-            if (!this.authenticationMethods.containsKey(this.getInstanceId())) {
+            if (!this.authenticationMethods.containsKey("*")) {
                 this.authenticationMethods.put("*", new ArrayList<>());
             }
             for (Object token : this.getConfig().getJSONArray("root_auth_tokens").toList()) {
