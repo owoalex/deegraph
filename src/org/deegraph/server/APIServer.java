@@ -56,7 +56,8 @@ public class APIServer {
 
         String privateKeyPEM = key
                 .replace("-----BEGIN PRIVATE KEY-----", "")
-                .replaceAll(System.lineSeparator(), "")
+                .replaceAll("\r\n", "")
+                .replaceAll("\n", "")
                 .replace("-----END PRIVATE KEY-----", "");
 
         byte[] encoded = Base64.getDecoder().decode(privateKeyPEM);
